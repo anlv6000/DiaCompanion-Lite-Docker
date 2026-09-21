@@ -1,0 +1,14 @@
+# Generated/verified against docker/ai/Dockerfile for the CPU installer.
+# Update these pins only after a clean-machine AI validation run.
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.6
+torch==2.5.1+cpu
+torchvision==0.20.1+cpu
+tensorflow-cpu==2.16.2
+segmentation-models-pytorch==0.3.4
+albumentations==1.4.24
+opencv-python==4.10.0.84
+numpy==1.26.4
+Pillow==11.1.0
+scikit-image==0.25.2

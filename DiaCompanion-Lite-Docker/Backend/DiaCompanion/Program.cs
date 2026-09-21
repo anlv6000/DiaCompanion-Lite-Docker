@@ -261,6 +261,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "DiaCompanion API v1"));
 }
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.UseCors("app");
 app.UseAuthentication();
 app.UseRateLimiter();
@@ -278,5 +280,7 @@ app.MapGet("/health", async (IRepository repository) =>
         utcNow = DateTime.UtcNow
     });
 }).AllowAnonymous();
+
+app.MapFallbackToFile("index.html");
 
 app.Run();
