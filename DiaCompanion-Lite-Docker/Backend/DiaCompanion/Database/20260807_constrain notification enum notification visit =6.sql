@@ -1,0 +1,8 @@
+ALTER TABLE dbo.Notifications
+DROP CONSTRAINT CK_Notif_Type;
+GO
+
+ALTER TABLE dbo.Notifications
+ADD CONSTRAINT CK_Notif_Type
+CHECK (Type BETWEEN 1 AND 6);
+GO

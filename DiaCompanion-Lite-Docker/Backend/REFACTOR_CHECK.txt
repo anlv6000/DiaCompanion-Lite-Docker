@@ -1,0 +1,58 @@
+=== forbidden legacy refs ===
+=== SetActive excerpt ===
+    public async Task<IActionResult> SetActive(int id, bool value, ConcurrencyRequest req)
+    {
+        var staff = await _repository.GetStaffAsync(id, tracking: true)
+            ?? throw AppException.NotFound(Msg.LoadFailed, "Không tìm thấy tài khoản nhân viên.");
+
+        var user = staff.User;
+        _repository.ApplyOriginalRowVersion(user, req.RowVersion);
+
+        if (user.Id == _me.Id && !value)
+            throw AppException.BadRequest(
+                Msg.Forbidden,
+                "Không thể tự khóa quyền nhân viên của tài khoản đang đăng nhập.");
+
+        var selectedRole = SelectStaffRole(staff.Roles)
+            ?? throw AppException.BadRequest(Msg.InvalidData, "Tài khoản không có role nhân viên hợp lệ.");
+
+        var oldActive = selectedRole.IsActive;
+
+        // Chỉ thay đổi Doctor/Receptionist trong UserRoles.
+        // Patient role của cùng User được giữ nguyên hoàn toàn.
+        var changed = await _repository.SetStaffRoleActiveAsync(
+            user.Id,
+            selectedRole.Name,
+            value,
+            _me.Id);
+
+        if (!changed)
+        {
+            throw AppException.BadRequest(
+                Msg.InvalidData,
+                value
+                    ? "Không thể mở khóa vì role nhân viên không còn hoạt động trong bảng Roles."
+                    : "Không tìm thấy role nhân viên để khóa.");
+        }
+
+        // Chỉ cập nhật timestamp để RowVersion của User đổi cho concurrency.
+        // Không dùng và không sửa Users.IsActive.
+        user.UpdatedAt = DateTime.UtcNow;
+
+        await _audit.LogAsync(
+            AuditAction.UserLock,
+            nameof(User),
+            user.Id,
+            new { Role = selectedRole.Name, IsActive = oldActive },
+            new { Role = selectedRole.Name, IsActive = value });
+
+        await _repository.CommitAsync();
+
+        return Ok(new
+        {
+            message = value
+                ? "Đã mở khóa quyền nhân viên."
+                : "Đã khóa quyền nhân viên.",
+            rowVersion = user.ToRowVersion()
+        });
+    }

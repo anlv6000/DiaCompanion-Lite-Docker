@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!--
+      IBM Plex — app.css khai báo dùng 3 họ này nhưng trước đây không nạp ở đâu
+      cả, nên toàn bộ giao diện rơi về phông hệ thống.
+      Bắt buộc có subset "vietnamese": các chữ hai dấu (ề ấ ộ ồ ữ) nằm ở khối
+      Latin Extended Additional U+1EA0–U+1EF9, không thuộc subset latin.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
+
+    <title>DiaCompanion — Console lâm sàng</title>
+    <!-- Cấu hình runtime: đổi origin backend khi deploy mà không cần build lại -->
+    <script src="/config.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

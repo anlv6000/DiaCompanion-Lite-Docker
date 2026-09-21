@@ -1,0 +1,117 @@
+# DiaCompanion Lite — toàn bộ hệ thống trong một lệnh:
+#   1) cp .env.example .env   (hoặc chạy docker/generate-env.ps1 | .sh)  rồi sửa giá trị
+#   2) đặt trọng số AI vào ./ai-weights/model_1 | model_2 | model_3
+#   3) docker compose up -d --build
+#   4) mở http://localhost:${WEB_PORT}   — mật khẩu tạm ở ./secrets/initial_credentials.txt
+name: diacompanion-lite
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  db:
+    <<: *restart
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Express            # miễn phí, giới hạn 10 GB/DB — đủ cho thu thập dữ liệu
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Đặt MSSQL_SA_PASSWORD trong .env}
+      TZ: Asia/Ho_Chi_Minh
+    volumes:
+      - mssql_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    # Không mở cổng 1433 ra ngoài. Cần SSMS từ máy chủ thì bỏ comment dòng dưới:
+    # ports: ["127.0.0.1:1433:1433"]
+
+  dbinit:
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+      target: dbinit
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      LITE_ADMIN_EMAIL: ${LITE_ADMIN_EMAIL:-bacsi@benhvien.local}
+      LITE_RESEARCH_EMAIL: ${LITE_RESEARCH_EMAIL:-nghiencuu@benhvien.local}
+      LITE_ADMIN_NAME: ${LITE_ADMIN_NAME:-Bác sĩ}
+      LITE_LICENSE: ${LITE_LICENSE:-NCKH-001}
+      ALLOW_MISSING_WEIGHTS: ${ALLOW_MISSING_WEIGHTS:-0}
+    volumes:
+      # seed_lite.py băm trọng số để ghi vào bảng ModelVersions.
+      - ./ai-weights/model_1:/ai_service/models/model_1/weights:ro
+      - ./ai-weights/model_2:/ai_service/models/model_2/weights:ro
+      - ./ai-weights/model_3:/ai_service/models/model_3/weights:ro
+      - ./secrets:/secrets
+      - ./exports:/exports
+
+  ai:
+    <<: *restart
+    build:
+      context: .
+      dockerfile: docker/ai/Dockerfile
+    volumes:
+      - storage:/data/storage
+      - ./ai-weights/model_1:/app/models/model_1/weights:ro
+      - ./ai-weights/model_2:/app/models/model_2/weights:ro
+      - ./ai-weights/model_3:/app/models/model_3/weights:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)"]
+      interval: 15s
+      timeout: 6s
+      retries: 10
+      start_period: 60s
+
+  backend:
+    <<: *restart
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+      target: runtime
+    depends_on:
+      dbinit:
+        condition: service_completed_successfully
+      ai:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Default: "Server=db;Database=DiaCompanion;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=True"
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?Đặt JWT_SIGNING_KEY trong .env}
+      Jwt__Issuer: diacompanion
+      Jwt__Audience: diacompanion-web
+      Storage__FundusRoot: /data/storage/fundus
+      Storage__AiMasksRoot: /data/storage/ai_masks
+      AiService__BaseUrl: http://ai:8000
+      AiService__TimeoutSeconds: "300"
+      Clinic__TimeZone: Asia/Ho_Chi_Minh
+      TZ: Asia/Ho_Chi_Minh
+    volumes:
+      - storage:/data/storage
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf \"GET /health HTTP/1.0\\r\\n\\r\\n\" >&3 && grep -q healthy <&3'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  web:
+    <<: *restart
+    build:
+      context: .
+      dockerfile: docker/web/Dockerfile
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
+volumes:
+  mssql_data:
+  storage:

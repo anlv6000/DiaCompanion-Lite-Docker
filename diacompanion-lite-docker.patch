@@ -1,0 +1,2867 @@
+diff --git a/.dockerignore b/.dockerignore
+new file mode 100644
+index 0000000..3016bdf
+--- /dev/null
++++ b/.dockerignore
+@@ -0,0 +1,25 @@
++**/.git
++**/node_modules
++**/dist
++**/dist-lite
++**/bin
++**/obj
++**/.vs
++**/__pycache__
++**/*.pyc
++**/venv
++**/.env
++**/appsettings.json
++**/appsettings.Development.json
++**/storage
++**/weights
++ai-weights
++secrets
++exports
++notebook_training
++Frontend-App_Native
++Diacompanion_sms_gateway
++DiaCompanion-hospital-demo
++ai_service/KetQuaChoModel2,Deferal
++ai_service/models/*/outputs
++Backend/DiaCompanion.Tests
+diff --git a/.gitignore b/.gitignore
+index 95c8b6f..0523c6b 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -37,4 +37,15 @@ weights/
+ **/venv/
+ **/publish/
+ __pycache__/
+-*.pyc
+\ No newline at end of file
++*.pyc
++# Docker (Lite)
++.env
++secrets/*
++exports/*
++ai-weights/model_*/*
++!ai-weights/model_*/.gitkeep
++!secrets/.gitkeep
++!exports/.gitkeep
++**/dist
++**/dist-lite
++**/node_modules
+diff --git a/Backend/DiaCompanion/Controllers/AdminController.cs b/Backend/DiaCompanion/Controllers/AdminController.cs
+deleted file mode 100644
+index e09a3b9..0000000
+--- a/Backend/DiaCompanion/Controllers/AdminController.cs
++++ /dev/null
+@@ -1,73 +0,0 @@
+-using DiaCompanion.Api.Common;
+-using DiaCompanion.Api.Dtos;
+-using DiaCompanion.Api.Services;
+-using Microsoft.AspNetCore.Authorization;
+-using Microsoft.AspNetCore.Mvc;
+-
+-namespace DiaCompanion.Api.Controllers;
+-
+-/// <summary>UC-53, UC-58..61 — thống kê và quản trị hệ thống.</summary>
+-[Route("api/admin")]
+-public class AdminController : BaseApiController
+-{
+-    private readonly IAdminService _service;
+-    public AdminController(IAdminService service) => _service = service;
+-
+-    [HttpGet("dashboard")]
+-    [Authorize(Roles = Roles.DoctorOrAdmin)]
+-    public async Task<ActionResult<DashboardDto>> Dashboard(
+-        [FromQuery] DateOnly? from,
+-        [FromQuery] DateOnly? to,
+-        [FromQuery] int? modelVersionId) =>
+-        await _service.Dashboard(from, to, modelVersionId);
+-
+-    [HttpGet("configs")]
+-    [Authorize(Roles = Roles.Admin)]
+-    public async Task<ActionResult<List<SystemConfigDto>>> Configs() =>
+-        await _service.Configs();
+-
+-    [HttpPut("configs/{key}")]
+-    [Authorize(Roles = Roles.Admin)]
+-    public async Task<IActionResult> UpdateConfig(string key, UpdateConfigRequest req) =>
+-        await _service.UpdateConfig(key, req);
+-
+-    [HttpGet("configs/threshold-impact")]
+-    [Authorize(Roles = Roles.Admin)]
+-    public async Task<ActionResult<ThresholdImpactDto>> ThresholdImpact(
+-        [FromQuery] string key,
+-        [FromQuery] decimal proposed) =>
+-        await _service.ThresholdImpact(key, proposed);
+-
+-    [HttpGet("models")]
+-    [Authorize(Roles = Roles.Admin)]
+-    public async Task<ActionResult<List<ModelVersionDto>>> Models() =>
+-        await _service.Models();
+-
+-    [HttpPost("models")]
+-    [Authorize(Roles = Roles.Admin)]
+-    public async Task<ActionResult<ModelVersionDto>> RegisterModel(RegisterModelRequest req) =>
+-        await _service.RegisterModel(req);
+-
+-    [HttpPut("models/{id:int}/activate")]
+-    [Authorize(Roles = Roles.Admin)]
+-    public async Task<IActionResult> ActivateModel(int id, ConcurrencyRequest req) =>
+-        await _service.ActivateModel(id, req);
+-
+-    [HttpDelete("models/{id:int}")]
+-    [Authorize(Roles = Roles.Admin)]
+-    public async Task<IActionResult> DeleteModel(int id, [FromQuery] string rowVersion) =>
+-        await _service.DeleteModel(id, rowVersion);
+-
+-    [HttpGet("audit")]
+-    [Authorize(Roles = Roles.Admin)]
+-    public async Task<ActionResult<KeysetResult<AuditLogDto>>> Audit(
+-        [FromQuery] string? action,
+-        [FromQuery] string? entityType,
+-        [FromQuery] int? entityId,
+-        [FromQuery] int? userId,
+-        [FromQuery] DateTime? from,
+-        [FromQuery] DateTime? to,
+-        [FromQuery] string? cursor,
+-        [FromQuery] int size = 25) =>
+-        await _service.Audit(action, entityType, entityId, userId, from, to, cursor, size);
+-}
+diff --git a/Backend/DiaCompanion/Controllers/BlogController.cs b/Backend/DiaCompanion/Controllers/BlogController.cs
+deleted file mode 100644
+index dc600e0..0000000
+--- a/Backend/DiaCompanion/Controllers/BlogController.cs
++++ /dev/null
+@@ -1,61 +0,0 @@
+-using DiaCompanion.Api.Common;
+-using DiaCompanion.Api.Dtos;
+-using DiaCompanion.Api.Entities;
+-using DiaCompanion.Api.Services;
+-using Microsoft.AspNetCore.Authorization;
+-using Microsoft.AspNetCore.Mvc;
+-
+-namespace DiaCompanion.Api.Controllers;
+-
+-/// <summary>UC-54..57 — blog giáo dục sức khỏe.</summary>
+-[Route("api/blog")]
+-public class BlogController : BaseApiController
+-{
+-    private readonly IBlogService _service;
+-    public BlogController(IBlogService service) => _service = service;
+-
+-    [HttpGet("published")]
+-    public async Task<ActionResult<PagedResult<BlogPostDto>>> Published(
+-        [FromQuery] string? q,
+-        [FromQuery] BlogCategory? category,
+-        [FromQuery] PageQuery paging) =>
+-        await _service.Published(q, category, paging);
+-
+-    [HttpGet("{id:int}")]
+-    public async Task<ActionResult<BlogPostDto>> Get(int id) => await _service.Get(id);
+-
+-    [HttpGet("manage")]
+-    [Authorize(Roles = Roles.DoctorOrAdmin)]
+-    public async Task<ActionResult<PagedResult<BlogPostDto>>> Manage(
+-        [FromQuery] string? q,
+-        [FromQuery] bool? published,
+-        [FromQuery] BlogCategory? category,
+-        [FromQuery] int? authorId,
+-        [FromQuery] PageQuery paging) =>
+-        await _service.Manage(q, published, category, authorId, paging);
+-
+-    [HttpPost]
+-    [Authorize(Roles = Roles.DoctorOrAdmin)]
+-    public async Task<ActionResult<BlogPostDto>> Create(SaveBlogRequest req) =>
+-        await _service.Create(req);
+-
+-    [HttpPut("{id:int}")]
+-    [Authorize(Roles = Roles.DoctorOrAdmin)]
+-    public async Task<ActionResult<BlogPostDto>> Update(int id, SaveBlogRequest req) =>
+-        await _service.Update(id, req);
+-
+-    [HttpPut("{id:int}/publish")]
+-    [Authorize(Roles = Roles.DoctorOrAdmin)]
+-    public async Task<IActionResult> Publish(int id, ConcurrencyRequest req) =>
+-        await _service.Publish(id, true, req);
+-
+-    [HttpPut("{id:int}/unpublish")]
+-    [Authorize(Roles = Roles.DoctorOrAdmin)]
+-    public async Task<IActionResult> Unpublish(int id, ConcurrencyRequest req) =>
+-        await _service.Publish(id, false, req);
+-
+-    [HttpDelete("{id:int}")]
+-    [Authorize(Roles = Roles.DoctorOrAdmin)]
+-    public async Task<IActionResult> Delete(int id, [FromQuery] string rowVersion) =>
+-        await _service.Delete(id, rowVersion);
+-}
+diff --git a/Backend/DiaCompanion/Controllers/EngagementController.cs b/Backend/DiaCompanion/Controllers/EngagementController.cs
+deleted file mode 100644
+index a5e73e3..0000000
+--- a/Backend/DiaCompanion/Controllers/EngagementController.cs
++++ /dev/null
+@@ -1,72 +0,0 @@
+-using DiaCompanion.Api.Common;
+-using DiaCompanion.Api.Dtos;
+-using DiaCompanion.Api.Services;
+-using Microsoft.AspNetCore.Authorization;
+-using Microsoft.AspNetCore.Mvc;
+-
+-namespace DiaCompanion.Api.Controllers;
+-
+-/// <summary>UC-49..52 — thông báo, triệu chứng và phản hồi.</summary>
+-[Route("api/engagement")]
+-public class EngagementController : BaseApiController
+-{
+-    private readonly IEngagementService _service;
+-    public EngagementController(IEngagementService service) => _service = service;
+-
+-    [HttpGet("notifications")]
+-    public async Task<ActionResult<PagedResult<NotificationDto>>> Notifications([FromQuery] PageQuery paging) =>
+-        await _service.Notifications(paging);
+-
+-    [HttpGet("notifications/unread-count")]
+-    public async Task<IActionResult> UnreadCount() => await _service.UnreadCount();
+-
+-    [HttpPut("notifications/{id:long}/read")]
+-    public async Task<IActionResult> MarkRead(long id) => await _service.MarkRead(id);
+-
+-    [HttpPut("notifications/read-all")]
+-    public async Task<IActionResult> MarkAllRead() => await _service.MarkAllRead();
+-
+-    [HttpPost("symptoms")]
+-    [Authorize(Roles = Roles.Patient)]
+-    public async Task<ActionResult<SymptomReportDto>> ReportSymptom(CreateSymptomRequest req) =>
+-        await _service.ReportSymptom(req);
+-
+-    [HttpGet("symptoms/me")]
+-    [Authorize(Roles = Roles.Patient)]
+-    public async Task<ActionResult<PagedResult<SymptomReportDto>>> MySymptoms(
+-    [FromQuery] bool pendingOnly = false,
+-    [FromQuery] PageQuery? paging = null) =>
+-    await _service.MySymptoms(pendingOnly, paging);
+-
+-    [HttpGet("symptoms")]
+-    [Authorize(Roles = Roles.DoctorOrPatient)]
+-    public async Task<ActionResult<PagedResult<SymptomReportDto>>> Symptoms(
+-        [FromQuery] int? patientId,
+-        [FromQuery] bool pendingOnly = false,
+-        [FromQuery] PageQuery? paging = null) =>
+-        await _service.Symptoms(patientId, pendingOnly, paging);
+-
+-    [HttpPut("symptoms/{id:int}/reply")]
+-    [Authorize(Roles = Roles.DoctorOnly)]
+-    public async Task<IActionResult> Reply(int id, DoctorReplyRequest req) =>
+-        await _service.Reply(id, req);
+-
+-    [HttpPost("feedback")]
+-    [Authorize(Roles = Roles.Patient)]
+-    public async Task<IActionResult> CreateFeedback(CreateFeedbackRequest req) =>
+-        await _service.CreateFeedback(req);
+-
+-    [HttpGet("feedback")]
+-    [Authorize(Roles = Roles.DoctorOrAdmin)]
+-    public async Task<ActionResult<PagedResult<FeedbackDto>>> Feedbacks(
+-        [FromQuery] byte? rating,
+-        [FromQuery] string? q,
+-        [FromQuery] DateOnly? from,
+-        [FromQuery] DateOnly? to,
+-        [FromQuery] PageQuery paging) =>
+-        await _service.Feedbacks(rating, q, from, to, paging);
+-
+-    [HttpGet("feedback/summary")]
+-    [Authorize(Roles = Roles.DoctorOrAdmin)]
+-    public async Task<IActionResult> FeedbackSummary() => await _service.FeedbackSummary();
+-}
+diff --git a/Backend/DiaCompanion/Controllers/ExportController.cs b/Backend/DiaCompanion/Controllers/ExportController.cs
+deleted file mode 100644
+index 4a716e6..0000000
+--- a/Backend/DiaCompanion/Controllers/ExportController.cs
++++ /dev/null
+@@ -1,38 +0,0 @@
+-using DiaCompanion.Api.Common;
+-using DiaCompanion.Api.Services;
+-using Microsoft.AspNetCore.Authorization;
+-using Microsoft.AspNetCore.Mvc;
+-
+-namespace DiaCompanion.Api.Controllers;
+-
+-/// <summary>UC-34, UC-35 — báo cáo khám và dữ liệu bất đồng người–AI.</summary>
+-[Route("api/export")]
+-public class ExportController : BaseApiController
+-{
+-    private readonly IExportService _service;
+-    public ExportController(IExportService service) => _service = service;
+-
+-    [HttpGet("visit-report/{visitId:int}")]
+-    public async Task<IActionResult> VisitReport(int visitId) =>
+-        await _service.VisitReport(visitId);
+-
+-    [HttpGet("visit-report/{visitId:int}.pdf")]
+-    public async Task<IActionResult> VisitReportPdf(int visitId) =>
+-        await _service.VisitReportPdf(visitId);
+-
+-    [HttpGet("disagreement-cases")]
+-    [Authorize(Roles = Roles.Admin)]
+-    public async Task<ActionResult<object>> DisagreementCases(
+-        [FromQuery] int? modelVersionId,
+-        [FromQuery] DateOnly? from,
+-        [FromQuery] DateOnly? to) =>
+-        await _service.DisagreementCases(modelVersionId, from, to);
+-
+-    [HttpGet("disagreement-cases.csv")]
+-    [Authorize(Roles = Roles.Admin)]
+-    public async Task<IActionResult> DisagreementCsv(
+-        [FromQuery] int? modelVersionId,
+-        [FromQuery] DateOnly? from,
+-        [FromQuery] DateOnly? to) =>
+-        await _service.DisagreementCsv(modelVersionId, from, to);
+-}
+diff --git a/Backend/DiaCompanion/Controllers/MonitoringController.cs b/Backend/DiaCompanion/Controllers/MonitoringController.cs
+deleted file mode 100644
+index 2fa5c0f..0000000
+--- a/Backend/DiaCompanion/Controllers/MonitoringController.cs
++++ /dev/null
+@@ -1,81 +0,0 @@
+-using DiaCompanion.Api.Common;
+-using DiaCompanion.Api.Dtos;
+-using DiaCompanion.Api.Entities;
+-using DiaCompanion.Api.Services;
+-using Microsoft.AspNetCore.Authorization;
+-using Microsoft.AspNetCore.Mvc;
+-
+-namespace DiaCompanion.Api.Controllers;
+-
+-/// <summary>UC-41..47 — chỉ số sức khỏe, lối sống và xác nhận dùng thuốc.</summary>
+-[Route("api/monitoring")]
+-public class MonitoringController : BaseApiController
+-{
+-    private readonly IMonitoringService _service;
+-    public MonitoringController(IMonitoringService service) => _service = service;
+-
+-    [HttpGet("metrics")]
+-    public async Task<ActionResult<KeysetResult<HealthMetricDto>>> Metrics(
+-        [FromQuery] int? patientId,
+-        [FromQuery] MetricType? type,
+-        [FromQuery] DateOnly? from,
+-        [FromQuery] DateOnly? to,
+-        [FromQuery] string? cursor,
+-        [FromQuery] int size = 50) =>
+-        await _service.Metrics(patientId, type, from, to, cursor, size);
+-
+-    [HttpPost("metrics")]
+-    [Authorize(Roles = Roles.Patient)]
+-    public async Task<ActionResult<HealthMetricDto>> CreateMetric(CreateMetricRequest req) =>
+-        await _service.CreateMetric(req);
+-
+-    [HttpPut("metrics/{id:int}")]
+-    [Authorize(Roles = Roles.Patient)]
+-    public async Task<IActionResult> UpdateMetric(int id, CreateMetricRequest req) =>
+-        await _service.UpdateMetric(id, req);
+-
+-    // [FromQuery] chứ KHÔNG phải body: DELETE mang body bị nhiều tầng mạng bỏ
+-    // qua (RN networking, proxy ngược, IIS), khiến req rỗng và trả về lỗi
+-    // "Thiếu RowVersion" dù client đã gửi đúng.
+-    [HttpDelete("metrics/{id:int}")]
+-    [Authorize(Roles = Roles.Patient)]
+-    public async Task<IActionResult> DeleteMetric(int id, [FromQuery] ConcurrencyRequest req) =>
+-        await _service.DeleteMetric(id, req);
+-
+-    [HttpGet("metrics/summary/{patientId:int}")]
+-    public async Task<ActionResult<MetricSummaryDto>> Summary(int patientId, [FromQuery] int days = 30) =>
+-        await _service.Summary(patientId, days);
+-
+-    [HttpGet("lifestyle")]
+-    public async Task<ActionResult<List<LifestyleLogDto>>> Lifestyle(
+-        [FromQuery] int? patientId,
+-        [FromQuery] int days = 14) =>
+-        await _service.Lifestyle(patientId, days);
+-
+-    [HttpPost("lifestyle")]
+-    [Authorize(Roles = Roles.Patient)]
+-    public async Task<ActionResult<LifestyleLogDto>> CreateLifestyle(CreateLifestyleRequest req) =>
+-        await _service.CreateLifestyle(req);
+-
+-    [HttpPut("lifestyle/{id:int}")]
+-    [Authorize(Roles = Roles.Patient)]
+-    public async Task<ActionResult<LifestyleLogDto>> UpdateLifestyle(int id, CreateLifestyleRequest req) =>
+-        await _service.UpdateLifestyle(id, req);
+-
+-    // [FromQuery] — xem ghi chú ở DeleteMetric.
+-    [HttpDelete("lifestyle/{id:int}")]
+-    [Authorize(Roles = Roles.Patient)]
+-    public async Task<IActionResult> DeleteLifestyle(int id, [FromQuery] ConcurrencyRequest req) =>
+-        await _service.DeleteLifestyle(id, req);
+-
+-    [HttpGet("medications/today")]
+-    public async Task<ActionResult<List<MedicationLogDto>>> Today([FromQuery] int? patientId) =>
+-        await _service.Today(patientId);
+-
+-    [HttpPut("medications/{id:int}/status")]
+-    [Authorize(Roles = Roles.Patient)]
+-    public async Task<ActionResult<MedicationLogDto>> UpdateMedicationStatus(
+-        int id,
+-        UpdateMedicationStatusRequest req) =>
+-        await _service.UpdateMedicationStatus(id, req);
+-}
+diff --git a/Backend/DiaCompanion/Controllers/PrescriptionsController.cs b/Backend/DiaCompanion/Controllers/PrescriptionsController.cs
+deleted file mode 100644
+index c5ae231..0000000
+--- a/Backend/DiaCompanion/Controllers/PrescriptionsController.cs
++++ /dev/null
+@@ -1,51 +0,0 @@
+-using DiaCompanion.Api.Common;
+-using DiaCompanion.Api.Dtos;
+-using DiaCompanion.Api.Services;
+-using DiaCompanion.Dtos;
+-using Microsoft.AspNetCore.Authorization;
+-using Microsoft.AspNetCore.Mvc;
+-
+-namespace DiaCompanion.Api.Controllers;
+-
+-/// <summary>UC-36..45 — đơn thuốc và tuân thủ.</summary>
+-public class PrescriptionsController : BaseApiController
+-{
+-    private readonly IPrescriptionsService _service;
+-    public PrescriptionsController(IPrescriptionsService service) => _service = service;
+-
+-    [HttpGet]
+-    public async Task<ActionResult<PagedResult<PrescriptionDto>>> List(
+-        [FromQuery] int? patientId,
+-        [FromQuery] string? q,
+-        [FromQuery] DateOnly? from,
+-        [FromQuery] DateOnly? to,
+-        [FromQuery] bool? voided,
+-        [FromQuery] PageQuery page) =>
+-        await _service.List(patientId, q, from, to, voided, page);
+-
+-    [HttpGet("{id:int}")]
+-    public async Task<ActionResult<PrescriptionDto>> Get(int id) => await _service.Get(id);
+-
+-    [HttpPost]
+-    [Authorize(Roles = Roles.DoctorOnly)]
+-    public async Task<ActionResult<PrescriptionDto>> Create(CreatePrescriptionRequest req) =>
+-        await _service.Create(req);
+-
+-    [HttpPut("{id:int}")]
+-    [Authorize(Roles = Roles.DoctorOnly)]
+-    public async Task<ActionResult<PrescriptionDto>> Update(int id, UpdatePrescriptionRequest req) =>
+-        await _service.Update(id, req);
+-
+-    [HttpPut("{id:int}/void")]
+-    [Authorize(Roles = Roles.DoctorOnly)]
+-    public async Task<IActionResult> Void(int id, VoidRequest req) => await _service.Void(id, req);
+-
+-    [HttpGet("adherence/{patientId:int}")]
+-    public async Task<IActionResult> Adherence(
+-        int patientId,
+-        [FromQuery] int days = 30,
+-        [FromQuery] int? prescriptionId = null,
+-        [FromQuery] DateOnly? from = null,
+-        [FromQuery] DateOnly? to = null) =>
+-        await _service.Adherence(patientId, days, prescriptionId, from, to);
+-}
+diff --git a/Backend/DiaCompanion/Controllers/ReceptionController.cs b/Backend/DiaCompanion/Controllers/ReceptionController.cs
+deleted file mode 100644
+index a6a2e88..0000000
+--- a/Backend/DiaCompanion/Controllers/ReceptionController.cs
++++ /dev/null
+@@ -1,46 +0,0 @@
+-using Microsoft.AspNetCore.Authorization;
+-using Microsoft.AspNetCore.Mvc;
+-using DiaCompanion.Api.Common;
+-using DiaCompanion.Api.Dtos;
+-using DiaCompanion.Api.Services;
+-
+-namespace DiaCompanion.Api.Controllers;
+-
+-/// <summary>LT-1..LT-9 — nghiệp vụ của Lễ tân.</summary>
+-[Route("api/reception")]
+-public class ReceptionController : BaseApiController
+-{
+-    private readonly IReceptionService _service;
+-    public ReceptionController(IReceptionService service) => _service = service;
+-
+-    [HttpGet("on-duty")]
+-    [Authorize(Roles = Roles.Receptionist)]
+-    public Task<ActionResult<OnDutyResponse>> OnDuty([FromQuery] DateOnly? date, [FromQuery] byte? shift, string? q) =>
+-        _service.OnDuty(date, shift, q);
+-
+-    [HttpGet("shifts")]
+-    [Authorize(Roles = Roles.Admin)]
+-    public Task<ActionResult<List<DoctorShiftDto>>> ListShifts([FromQuery] int? doctorId) =>
+-        _service.ListShifts(doctorId);
+-
+-    [HttpPost("shifts")]
+-    [Authorize(Roles = Roles.Admin)]
+-    public Task<ActionResult<DoctorShiftDto>> CreateShift(CreateDoctorShiftRequest req) =>
+-        _service.CreateShift(req);
+-
+-    [HttpPost("shifts/batch")]
+-    [Authorize(Roles = Roles.Admin)]
+-    public Task<ActionResult<List<DoctorShiftDto>>> CreateShiftsBatch(CreateDoctorShiftsBatchRequest req) =>
+-        _service.CreateShiftsBatch(req);
+-
+-    [HttpPut("shifts/{id:int}/active")]
+-    [Authorize(Roles = Roles.Admin)]
+-    public Task<ActionResult<DoctorShiftDto>> SetShiftActive(
+-        int id, [FromQuery] bool active, [FromQuery] string rowVersion) =>
+-        _service.SetShiftActive(id, active, rowVersion);
+-
+-    [HttpDelete("shifts/{id:int}")]
+-    [Authorize(Roles = Roles.Admin)]
+-    public Task<IActionResult> DeleteShift(int id, [FromQuery] string rowVersion) =>
+-        _service.DeleteShift(id, rowVersion);
+-}
+diff --git a/Backend/DiaCompanion/Controllers/RecheckController.cs b/Backend/DiaCompanion/Controllers/RecheckController.cs
+deleted file mode 100644
+index bd630fe..0000000
+--- a/Backend/DiaCompanion/Controllers/RecheckController.cs
++++ /dev/null
+@@ -1,68 +0,0 @@
+-using Microsoft.AspNetCore.Authorization;
+-using Microsoft.AspNetCore.Mvc;
+-using DiaCompanion.Api.Common;
+-using DiaCompanion.Api.Dtos;
+-using DiaCompanion.Api.Entities;
+-using DiaCompanion.Api.Services;
+-
+-namespace DiaCompanion.Api.Controllers;
+-
+-/// <summary>
+-/// UC-48 — nhắc tái tầm soát.
+-///
+-/// Thay cho chức năng đặt lịch theo khung giờ đã bỏ. Ngày tái khám được TÍNH
+-/// từ lượt khám hoàn tất gần nhất (ClosedAt + RecheckMonths, BR-19), không lưu
+-/// trong bảng riêng và không có trạng thái đặt/hủy/đổi.
+-///
+-/// Bệnh nhân đến khám trực tiếp trong giờ làm việc.
+-/// </summary>
+-[Route("api/recheck")]
+-public class RecheckController : BaseApiController
+-{
+-    private readonly IRecheckService _service;
+-    public RecheckController(IRecheckService service) => _service = service;
+-
+-
+-    /// <summary>UC-48 — bệnh nhân xem lần tái khám tiếp theo của mình.</summary>
+-    [HttpGet("me")]
+-    [Authorize(Roles = Roles.Patient)]
+-    public async Task<ActionResult<RecheckDto>> Mine()
+-    {
+-        return await _service.Mine();
+-    }
+-
+-
+-    /// <summary>Xem ngày tái khám của một bệnh nhân cụ thể (phía phòng khám).</summary>
+-    [HttpGet("patient/{patientId:int}")]
+-    [Authorize(Roles = Roles.DoctorOnly)]
+-    public async Task<ActionResult<RecheckDto>> ForPatient(int patientId)
+-    {
+-        return await _service.ForPatient(patientId);
+-    }
+-
+-
+-    /// <summary>
+-    /// UC-48 — danh sách bệnh nhân đến hạn tái tầm soát, để phòng khám gọi nhắc.
+-    ///
+-    /// Toàn bộ tính từ dữ liệu lượt khám, không có bảng lịch hẹn. Bệnh nhân
+-    /// được coi là chưa quay lại khi chưa có lượt khám nào mới hơn lượt đã đóng.
+-    /// </summary>
+-    [HttpGet("due")]
+-    [Authorize(Roles = Roles.DoctorOrReception)]
+-    public async Task<ActionResult<PagedResult<RecheckDto>>> Due(
+-    [FromQuery] bool overdueOnly = false,
+-    [FromQuery] int withinDays = 30,
+-    [FromQuery] PageQuery? paging = null)
+-    {
+-        return await _service.Due(overdueOnly, withinDays, paging);
+-    }
+-
+-
+-    /// <summary>Số bệnh nhân quá hạn, để hiện badge trên thanh điều hướng.</summary>
+-    [HttpGet("overdue-count")]
+-    [Authorize(Roles = Roles.DoctorOrReception)]
+-    public async Task<IActionResult> OverdueCount()
+-    {
+-        return await _service.OverdueCount();
+-    }
+-}
+diff --git a/Backend/DiaCompanion/Controllers/UsersController.cs b/Backend/DiaCompanion/Controllers/UsersController.cs
+deleted file mode 100644
+index cee2854..0000000
+--- a/Backend/DiaCompanion/Controllers/UsersController.cs
++++ /dev/null
+@@ -1,102 +0,0 @@
+-using Microsoft.AspNetCore.Authorization;
+-using Microsoft.AspNetCore.Mvc;
+-using DiaCompanion.Api.Common;
+-using DiaCompanion.Api.Dtos;
+-using DiaCompanion.Api.Services;
+-using DiaCompanion.Dtos;
+-
+-namespace DiaCompanion.Api.Controllers;
+-
+-/// <summary>UC-06..11 — quản lý tài khoản nhân viên (Admin).</summary>
+-public class UsersController : BaseApiController
+-{
+-    private readonly IUsersService _service;
+-
+-    public UsersController(IUsersService service) => _service = service;
+-
+-
+-    /// <summary>UC-06 — danh sách tài khoản nhân viên.</summary>
+-    [HttpGet]
+-    [Authorize(Roles = Roles.Admin)]
+-    public async Task<ActionResult<PagedResult<StaffUserDto>>> List(
+-    [FromQuery] string? q, [FromQuery] string? role, [FromQuery] bool? isActive,
+-    [FromQuery] PageQuery paging)
+-    {
+-        var testPage = paging.Page;       
+-        var testSize = paging.PageSize;    
+-        var testDesc = paging.Desc;
+-        return await _service.List(q, role, isActive, paging);
+-    }
+-
+-
+-    /// <summary>UC-07 — chi tiết tài khoản.</summary>
+-    [HttpGet("{id:int}")]
+-    [Authorize(Roles = Roles.Admin)]
+-    public async Task<ActionResult<StaffUserDto>> Get(int id)
+-    {
+-        return await _service.Get(id);
+-    }
+-
+-
+-    /// <summary>UC-08 — tạo tài khoản Bác sĩ hoặc Lễ tân.</summary>
+-    [HttpPost]
+-    [Authorize(Roles = Roles.Admin)]
+-    public async Task<ActionResult<TempCredentialResponse>> Create(CreateStaffRequest req)
+-    {
+-        return await _service.Create(req);
+-    }
+-
+-
+-    /// <summary>UC-09 — cập nhật tài khoản.</summary>
+-    [HttpPut("{id:int}")]
+-    [Authorize(Roles = Roles.Admin)]
+-    public async Task<IActionResult> Update(int id, UpdateStaffRequest req)
+-    {
+-        return await _service.Update(id, req);  
+-    }
+-
+-
+-    /// <summary>
+-    /// UC-10 — khóa / mở quyền nhân viên trong UserRoles.
+-    /// Không sửa Users.IsActive và không ảnh hưởng role Patient của cùng User.
+-    /// </summary>
+-    [HttpPut("{id:int}/active")]
+-    [Authorize(Roles = Roles.Admin)]
+-    public async Task<IActionResult> SetActive(
+-        int id,
+-        ConcurrencyRequest req,
+-        [FromQuery] bool value)
+-    {
+-        return await _service.SetActive(id, value, req);
+-    }
+-
+-
+-    /// <summary>UC-11 — đặt lại mật khẩu cho nhân viên.</summary>
+-    [HttpPost("{id:int}/reset-password")]
+-    [Authorize(Roles = Roles.Admin)]
+-    public async Task<ActionResult<TempCredentialResponse>> ResetPassword(
+-        int id,
+-        ConcurrencyRequest req)
+-    {
+-        return await _service.ResetPassword(id, req);
+-    }
+-
+-
+-    /// <summary>Danh sách bác sĩ để đổ vào dropdown (dùng ở nhiều màn).</summary>
+-    [HttpGet("doctors")]
+-    [Authorize(Roles = Roles.FrontDesk)]
+-    public async Task<IActionResult> Doctors()
+-    {
+-        return await _service.Doctors();
+-    }
+-
+-
+-    [HttpGet("linkable-patients")]
+-    [Authorize(Roles = Roles.Receptionist)]
+-    public async Task<ActionResult<IReadOnlyList<LinkableUserDto>>> GetLinkablePatients(
+-       [FromQuery] string? q,
+-       CancellationToken ct)
+-    {
+-        return Ok(await _service.GetLinkableUsersAsync(q, ct));
+-    }
+-}
+diff --git a/Backend/DiaCompanion/Program.cs b/Backend/DiaCompanion/Program.cs
+index 157275d..404403d 100644
+--- a/Backend/DiaCompanion/Program.cs
++++ b/Backend/DiaCompanion/Program.cs
+@@ -23,7 +23,7 @@ var connectionString =
+     builder.Configuration.GetConnectionString("Default");
+ 
+ Console.WriteLine("=== CONNECTION STRING ===");
+-Console.WriteLine(connectionString);
++// (đã bỏ in chuỗi kết nối: chứa mật khẩu và sẽ lọt vào log của container)
+ Console.WriteLine("=========================");
+ /* ------------------------------------------------------------------ config */
+ // QT-19: secret đọc từ biến môi trường, KHÔNG từ bảng SystemConfigs.
+@@ -90,7 +90,8 @@ builder.Services.AddScoped<IReceptionService, ReceptionService>();
+ builder.Services.AddScoped<ITriageService, TriageService>();
+ builder.Services.AddScoped<IUsersService, UsersService>();
+ builder.Services.AddScoped<IVisitsService, VisitsService>();
+-builder.Services.AddHostedService<ClinicalReminderWorker>();
++// Bản thu thập dữ liệu (Lite): không chạy tác vụ nền nhắc thuốc / tái khám.
++// builder.Services.AddHostedService<ClinicalReminderWorker>();
+ 
+ builder.Services.AddControllers()
+     .AddJsonOptions(o =>
+diff --git a/DOCKER_README.md b/DOCKER_README.md
+new file mode 100644
+index 0000000..334b31c
+--- /dev/null
++++ b/DOCKER_README.md
+@@ -0,0 +1,79 @@
++# DiaCompanion Lite — bản build Docker
++
++Một lệnh dựng toàn bộ hệ thống thu thập dữ liệu trên **một máy** (Windows + Docker Desktop, hoặc Linux + Docker Engine):
++
++```
++SQL Server 2022 Express ← ASP.NET Core 8 backend ← nginx (web Lite + reverse proxy /api) ← trình duyệt
++                                  ↓ HTTP nội bộ
++                           AI service (FastAPI, CPU)  ── chung volume ảnh với backend
++```
++
++| Container | Vai trò | Ra ngoài |
++|---|---|---|
++| `db` | SQL Server 2022 Express (dữ liệu ở volume `mssql_data`) | không |
++| `dbinit` | chạy **một lần**: tạo DB, áp schema, seed tài khoản + 3 model | không |
++| `backend` | API .NET 8 (đã bỏ các module không dùng) | không (qua nginx) |
++| `ai` | 3 model DR / lesion / vessel-fractal, chạy CPU | không |
++| `web` | nginx: giao diện Lite + chuyển tiếp `/api/*` | **cổng `WEB_PORT` (mặc định 8080)** |
++
++## Yêu cầu
++
++- Docker Desktop 4.x (WSL2) hoặc Docker Engine + Compose v2; **RAM ≥ 8 GB** cấp cho Docker, đĩa trống ≥ 15 GB (image AI có PyTorch + TensorFlow).
++- Máy build cần Internet (NuGet, npm, PyPI, PyTorch CPU wheels, Docker Hub). Sau khi build xong, chạy được **offline** trong LAN.
++- **Trọng số AI** (không có trong git) đặt vào:
++  ```
++  ai-weights/model_1/efficientnet_b4_fold0_best.pth … fold4_best.pth   (1–5 fold)
++  ai-weights/model_2/tjdr_unet_v4_2_best.pth
++  ai-weights/model_3/best_model.keras
++  ```
++
++## Chạy
++
++```powershell
++# Windows PowerShell                          # Linux/macOS
++.\docker\generate-env.ps1                     # ./docker/generate-env.sh
++docker compose up -d --build
++```
++(Hoặc `cp .env.example .env` và tự sửa. Mật khẩu SA chỉ dùng chữ + số để khỏi hỏng chuỗi kết nối.)
++
++Lần đầu build mất vài chục phút. Sau đó:
++
++1. Mở `http://<địa-chỉ-máy>:8080`.
++2. Mật khẩu tạm của `LITE_ADMIN_EMAIL` nằm trong `./secrets/initial_credentials.txt` (cũng in ở `docker compose logs dbinit`). Đăng nhập → bắt buộc đổi mật khẩu → **xóa tệp đó**.
++3. Quy trình: *Thêm bệnh nhân → Bắt đầu lượt → nhập chỉ số → nạp ảnh OD/OS → Đạt chất lượng → Chạy AI → Chi tiết & xác nhận → Đóng lượt.*
++
++Kiểm tra: `docker compose ps` (backend/web phải *healthy*), `docker compose logs -f backend ai`.
++
++## Vận hành
++
++| Việc | Lệnh |
++|---|---|
++| Xuất dữ liệu nghiên cứu (đã bỏ định danh) | `docker compose run --rm dbinit export` → `./exports/dataset.tsv` (TSV, mở bằng Excel) |
++| Cấp lại mật khẩu tạm | `docker compose run --rm dbinit reset-password` |
++| Dừng / chạy lại | `docker compose stop` / `docker compose up -d` (dữ liệu nằm trong volume, không mất) |
++| Cập nhật code | `git pull` (hoặc thay mã nguồn) rồi `docker compose up -d --build` |
++| Sao lưu DB | `docker compose exec db /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "<SA>" -Q "BACKUP DATABASE DiaCompanion TO DISK='/var/opt/mssql/dia.bak' WITH INIT"` rồi `docker compose cp db:/var/opt/mssql/dia.bak ./dia.bak` |
++| Sao lưu ảnh + mask | `docker run --rm -v diacompanion-lite_storage:/d -v "${PWD}:/b" alpine tar czf /b/storage.tgz -C /d .` |
++| **Xóa sạch (mất dữ liệu)** | `docker compose down -v` |
++
++## Schema CSDL
++
++Repo không có script tạo schema đầy đủ (chỉ các patch trong `Backend/DiaCompanion/Database/`). Khi build, image sinh schema bằng `dotnet ef dbcontext script` **từ mô hình EF Core (`AppDbContext`)**. Nếu bạn muốn dùng đúng schema của DB đang chạy: xuất *schema-only* từ SSMS và lưu thành `Backend/DiaCompanion/Database/lite_schema.sql` trước khi build — Dockerfile sẽ dùng tệp đó thay cho bản sinh tự động. Schema tự sinh **không** gồm các CHECK constraint thêm bằng patch SQL (vd. `CK_ModelVersions_ModelType`).
++
++## Bảo mật (mạng nội bộ)
++
++- Chỉ cổng web được publish; SQL Server, backend, AI không mở ra máy chủ. **Chưa có HTTPS** — dùng trong LAN kín, hoặc đặt sau reverse proxy có TLS của bệnh viện.
++- Đã bỏ dòng `Console.WriteLine(connectionString)` trong `Program.cs` (nó in mật khẩu SA ra log).
++- Giới hạn đăng nhập của backend là 5 lần/phút **theo IP**; sau nginx mọi người dùng chung một IP nội bộ nên giới hạn này áp chung cho cả nhóm.
++- `.env`, `secrets/`, `exports/` đã nằm trong `.gitignore`. Đừng commit.
++
++## Chưa kiểm chứng (môi trường soạn thảo không có Docker/.NET)
++
++Đã kiểm tra: nginx (`nginx -t` + chạy thật với backend giả: proxy `/api`, upload 5 MB qua, 13 MB bị 413, SPA fallback, header cache), luồng `dbinit.sh` với `sqlcmd` giả (init lần 1/lần 2 bỏ qua, export, reset, email sai, thiếu trọng số), shellcheck, tham chiếu compose và các đường dẫn `COPY`, bản web Lite build được.
++
++**Chưa chạy:** `docker compose build/up`; build .NET và `dotnet ef dbcontext script`; cài đặt image AI (PyTorch/TensorFlow); SQL sinh ra trên SQL Server thật; chạy AI với trọng số thật.
++
++Điểm dễ hỏng nhất khi build lần đầu:
++1. **TensorFlow/Keras:** mặc định `tensorflow-cpu==2.15.1`. Nếu `model_3` nạp lỗi (huấn luyện bằng Keras 3): `docker compose build --build-arg TF_VERSION=2.16.2 ai`.
++2. **`dotnet ef dbcontext script`** cần khởi tạo host từ `Program.cs`; nếu lỗi, dùng `lite_schema.sql` như trên.
++3. **Thời gian suy luận CPU** có thể dài; timeout backend→AI đặt 300 s, nginx 300 s.
+diff --git a/Frontend/electron/main.cjs b/Frontend/electron/main.cjs
+index daaf225..2af179e 100644
+--- a/Frontend/electron/main.cjs
++++ b/Frontend/electron/main.cjs
+@@ -6,7 +6,7 @@ const http = require("http");
+ const fs = require("fs");
+ const path = require("path");
+ 
+-const DIST = path.join(__dirname, "..", "dist");
++const DIST = path.join(__dirname, "..", process.env.DIACOMPANION_DIST || "dist");
+ const PREFERRED_PORT = 9001;
+ 
+ const MIME = {
+diff --git a/Frontend/package.json b/Frontend/package.json
+index 3dca55c..97747f8 100644
+--- a/Frontend/package.json
++++ b/Frontend/package.json
+@@ -7,7 +7,9 @@
+     "dev": "vite",
+     "build": "tsc -b && vite build",
+     "preview": "vite preview",
+-    "typecheck": "tsc --noEmit"
++    "typecheck": "tsc --noEmit",
++    "dev:lite": "vite --mode lite",
++    "build:lite": "tsc -b && vite build --mode lite"
+   },
+   "dependencies": {
+     "react": "^18.3.1",
+diff --git a/Frontend/src/config/index.ts b/Frontend/src/config/index.ts
+index 7cb5fec..b75b555 100644
+--- a/Frontend/src/config/index.ts
++++ b/Frontend/src/config/index.ts
+@@ -13,9 +13,18 @@ declare global {
+ 
+ const DEFAULT_API = "https://localhost:55403/";
+ 
++/**
++ * Địa chỉ backend lúc chạy.
++ *  - window.__DIACOMPANION_API__ (public/config.js) được ưu tiên → đổi được
++ *    khi triển khai mà KHÔNG cần build lại.
++ *  - Chuỗi rỗng "" nghĩa là cùng origin (IIS/Nginx reverse proxy /api/*).
++ *  - Không đặt gì thì rơi về DEFAULT_API (môi trường dev).
++ */
++const runtimeApi =
++  typeof window !== "undefined" ? window.__DIACOMPANION_API__ : undefined;
+ 
+ export const API_BASE: string = (
+-   DEFAULT_API
++  typeof runtimeApi === "string" ? runtimeApi : DEFAULT_API
+ ).replace(/\/$/, "");
+ 
+ /** Khoá lưu phiên trong sessionStorage. */
+diff --git a/Frontend/src/lite/LiteApp.tsx b/Frontend/src/lite/LiteApp.tsx
+new file mode 100644
+index 0000000..0dccd2c
+--- /dev/null
++++ b/Frontend/src/lite/LiteApp.tsx
+@@ -0,0 +1,21 @@
++import { BrowserRouter } from "react-router-dom";
++import { AuthProvider } from "@/contexts/AuthContext";
++import { DataProvider } from "@/contexts/DataContext";
++import { ToastProvider } from "@/contexts/ToastContext";
++import { LiteRoutes } from "@/lite/LiteRoutes";
++
++/* Cùng thứ tự provider với bản đầy đủ (app/App.tsx) để dùng lại nguyên
++   AuthContext / DataContext / ToastContext, chỉ khác bảng route. */
++export function LiteApp() {
++  return (
++    <BrowserRouter>
++      <AuthProvider>
++        <DataProvider>
++          <ToastProvider>
++            <LiteRoutes />
++          </ToastProvider>
++        </DataProvider>
++      </AuthProvider>
++    </BrowserRouter>
++  );
++}
+diff --git a/Frontend/src/lite/LiteAuth.tsx b/Frontend/src/lite/LiteAuth.tsx
+new file mode 100644
+index 0000000..b916740
+--- /dev/null
++++ b/Frontend/src/lite/LiteAuth.tsx
+@@ -0,0 +1,113 @@
++import { useState, type FormEvent, type ReactElement } from "react";
++import { Navigate, useLocation } from "react-router-dom";
++import { useAuth } from "@/contexts/AuthContext";
++import { hasRole } from "@/lib/roles";
++import { Button, Field } from "@/components/ui";
++import { LiteShell } from "@/lite/LiteShell";
++
++/* Đăng nhập nhân viên. Không có "Quên mật khẩu" tự phục vụ: người quản trị hệ
++   thống cấp lại mật khẩu (script SQL đi kèm gói Lite). */
++export function LiteLoginPage() {
++  const { login } = useAuth();
++  const [loginId, setLoginId] = useState("");
++  const [password, setPassword] = useState("");
++  const [showPassword, setShowPassword] = useState(false);
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState("");
++
++  async function submit(e: FormEvent) {
++    e.preventDefault();
++    setBusy(true);
++    setError("");
++    try {
++      await login(loginId.trim(), password);
++    } catch (err) {
++      setError((err as Error).message);
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  return (
++    <div className="login">
++      <div className="login-card">
++        <div className="login-side">
++          <h1>DiaCompanion</h1>
++          <p>Công cụ thu thập dữ liệu sàng lọc bệnh võng mạc đái tháo đường.</p>
++          <div className="stack">
++            <span>• Tạo hồ sơ, nhập chỉ số, nạp ảnh đáy mắt hai mắt.</span>
++            <span>• AI chỉ hỗ trợ; bác sĩ xác nhận kết quả.</span>
++          </div>
++        </div>
++        <form className="login-form" onSubmit={submit}>
++          <h2 className="serif">Đăng nhập</h2>
++          <p className="faint">Tài khoản do quản trị hệ thống cấp.</p>
++          <Field labelText="Email" required>
++            <input
++              autoFocus
++              type="text"
++              value={loginId}
++              onChange={(e) => setLoginId(e.target.value)}
++              placeholder="Email đăng nhập"
++              autoComplete="username"
++            />
++          </Field>
++          <Field labelText="Mật khẩu" required>
++            <div className="input-with-action">
++              <input
++                type={showPassword ? "text" : "password"}
++                value={password}
++                onChange={(e) => setPassword(e.target.value)}
++                autoComplete="current-password"
++              />
++              <Button type="button" onClick={() => setShowPassword((x) => !x)}>
++                {showPassword ? "Ẩn" : "Hiện"}
++              </Button>
++            </div>
++          </Field>
++          {error && <div className="state error">{error}</div>}
++          <Button
++            kind="primary"
++            type="submit"
++            busy={busy}
++            disabled={!loginId.trim() || !password}
++            style={{ width: "100%", justifyContent: "center", marginTop: 8 }}
++          >
++            Đăng nhập
++          </Button>
++        </form>
++      </div>
++    </div>
++  );
++}
++
++/* Cổng bảo vệ: phải đăng nhập, đổi mật khẩu tạm trước, và (trừ trang đổi mật
++   khẩu) tài khoản phải có ĐỦ hai vai trò Doctor + Receptionist — Lễ tân tạo hồ
++   sơ/lượt khám, Bác sĩ nạp ảnh/chạy AI/xác nhận. Backend vẫn là chốt chặn thật. */
++export function LiteGate({
++  children,
++  skipRole = false,
++}: {
++  children: ReactElement;
++  skipRole?: boolean;
++}) {
++  const { user } = useAuth();
++  const location = useLocation();
++  if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
++  if (user.mustChangePassword && location.pathname !== "/change-password") {
++    return <Navigate to="/change-password" replace />;
++  }
++  const enough = hasRole(user, "Doctor") && hasRole(user, "Receptionist");
++  return (
++    <LiteShell>
++      {skipRole || enough ? (
++        children
++      ) : (
++        <div className="state error" style={{ margin: 24 }}>
++          <b>Tài khoản chưa đủ quyền cho bản thu thập dữ liệu</b>
++          <div>Cần đồng thời hai vai trò Doctor và Receptionist. Liên hệ quản trị hệ thống.</div>
++        </div>
++      )}
++    </LiteShell>
++  );
++}
+diff --git a/Frontend/src/lite/LiteCase.tsx b/Frontend/src/lite/LiteCase.tsx
+new file mode 100644
+index 0000000..757b0b5
+--- /dev/null
++++ b/Frontend/src/lite/LiteCase.tsx
+@@ -0,0 +1,509 @@
++import { useEffect, useRef, useState } from "react";
++import { useNavigate } from "react-router-dom";
++import { useAuth } from "@/contexts/AuthContext";
++import { useData } from "@/contexts/DataContext";
++import { useToast } from "@/contexts/ToastContext";
++import { useAsync } from "@/lib/hooks";
++import {
++  Button,
++  DataTable,
++  EyeBadge,
++  Field,
++  GradeBadge,
++  LoadState,
++  PageHeader,
++  Panel,
++  StatusBadge,
++} from "@/components/ui";
++import { ProtectedImage } from "@/components/ProtectedImage";
++import { diabetesTypes, eyes, genders, label, metricContexts, qualityStatuses, visitStatuses } from "@/lib/enums";
++import { fmtDate, num } from "@/lib/format";
++import type { AiDiagnosisDto, FundusImageDto, PatientDetailDto, VisitDto } from "@/types/api";
++
++/* Khớp enum ReferralType của backend (None=0, FollowUp=1, Ophthalmology=2, Urgent=3).
++   Không dùng `referralTypes` trong lib/enums.ts vì mảng đó chỉ có 3 phần tử nên
++   lệch nhãn từ giá trị 1 trở đi. */
++const referralTypes = ["Không", "Theo dõi", "Chuyên khoa mắt", "Khẩn cấp"];
++
++/* Trang làm việc của MỘT bệnh nhân trong bản thu thập dữ liệu:
++   1) bắt đầu lượt  →  2) nhập chỉ số  →  3) nạp ảnh mắt phải + mắt trái
++   →  4) chạy AI  →  5) bác sĩ xác nhận (trang /fundus/:id)  →  6) đóng lượt.
++   Toàn bộ nghiệp vụ và quy tắc nằm ở backend hiện có; trang này chỉ gọi lại
++   đúng các API đó. */
++export function LiteCasePage({ id }: { id: number }) {
++  const data = useData();
++  const { user } = useAuth();
++  const toast = useToast();
++  const navigate = useNavigate();
++  const patient = useAsync(() => data.patients.get(id), [id]);
++  const visits = useAsync(() => data.visits.list({ patientId: id, page: 1, pageSize: 100 }), [id]);
++  const [starting, setStarting] = useState(false);
++
++  const items = visits.data?.items ?? [];
++  const open = items.find((v) => v.status === 0);
++  const closed = items.filter((v) => v.status !== 0);
++
++  const start = async () => {
++    setStarting(true);
++    try {
++      await data.visits.create({ patientId: id, doctorId: user?.userId });
++      toast.push("Đã bắt đầu lượt thu thập mới.", "success");
++      visits.reload();
++      patient.reload();
++    } catch (e) {
++      toast.push((e as Error).message, "error");
++    } finally {
++      setStarting(false);
++    }
++  };
++
++  return (
++    <LoadState loading={patient.loading} error={patient.error} onRetry={patient.reload} empty={!patient.data}>
++      {patient.data && (
++        <>
++          <PageHeader
++            title={`${patient.data.code} · ${patient.data.fullName}`}
++            subtitle={summary(patient.data)}
++            actions={
++              <>
++                <Button onClick={() => navigate("/cases")}>Danh sách</Button>
++                <Button onClick={() => navigate(`/cases/${id}/edit`)}>Sửa hồ sơ</Button>
++              </>
++            }
++          />
++
++          <LoadState loading={visits.loading} error={visits.error} onRetry={visits.reload}>
++            {open ? (
++              <VisitWorkspace patient={patient.data} visit={open} onChanged={visits.reload} />
++            ) : (
++              <Panel title="Lượt thu thập">
++                <p className="muted">
++                  Bệnh nhân chưa có lượt đang mở. Mỗi lượt gồm chỉ số lâm sàng, ảnh mắt phải/mắt trái và kết quả AI.
++                </p>
++                <Button kind="primary" busy={starting} onClick={start}>
++                  Bắt đầu lượt thu thập mới
++                </Button>
++              </Panel>
++            )}
++          </LoadState>
++
++          {closed.length > 0 && (
++            <Panel title="Các lượt đã đóng">
++              <DataTable headers={["Mã", "Ngày khám", "Ảnh", "Kết luận", "Chuyển tuyến", "Trạng thái"]}>
++                {closed.map((v) => (
++                  <tr key={v.id}>
++                    <td className="mono">#{v.id}</td>
++                    <td className="mono">{fmtDate(v.visitDate, true)}</td>
++                    <td className="mono">{v.imageCount}</td>
++                    <td className="wrap-text">{v.conclusion || "—"}</td>
++                    <td>{label(referralTypes, v.referral)}</td>
++                    <td>
++                      <StatusBadge text={label(visitStatuses, v.status)} kind="ok" />
++                    </td>
++                  </tr>
++                ))}
++              </DataTable>
++            </Panel>
++          )}
++        </>
++      )}
++    </LoadState>
++  );
++}
++
++function summary(p: PatientDetailDto) {
++  const parts = [
++    label(genders, p.gender),
++    `${p.age} tuổi`,
++    label(diabetesTypes, p.diabetesType),
++    p.diabetesDurationYears != null ? `mắc ${p.diabetesDurationYears} năm` : null,
++    p.baselineHbA1c != null ? `HbA1c nền ${p.baselineHbA1c}%` : null,
++  ];
++  return parts.filter(Boolean).join(" · ");
++}
++
++/* ---------------------------------------------------------------- lượt đang mở */
++function VisitWorkspace({
++  patient,
++  visit,
++  onChanged,
++}: {
++  patient: PatientDetailDto;
++  visit: VisitDto;
++  onChanged: () => void;
++}) {
++  return (
++    <>
++      <MetricsPanel visit={visit} />
++      <EyesPanel patient={patient} visit={visit} onChanged={onChanged} />
++      <ClosePanel visit={visit} onClosed={onChanged} />
++    </>
++  );
++}
++
++/* ---------------------------------------------------------------- 1. chỉ số */
++function MetricsPanel({ visit }: { visit: VisitDto }) {
++  const data = useData();
++  const toast = useToast();
++  const metrics = useAsync(() => data.visits.healthMetrics(visit.id), [visit.id]);
++  const [hba1c, setHba1c] = useState("");
++  const [glucose, setGlucose] = useState("");
++  const [glucoseContext, setGlucoseContext] = useState("");
++  const [systolic, setSystolic] = useState("");
++  const [diastolic, setDiastolic] = useState("");
++  const [saving, setSaving] = useState(false);
++
++  useEffect(() => {
++    const m = metrics.data;
++    if (!m) return;
++    setHba1c(m.hbA1c?.value == null ? "" : String(m.hbA1c.value));
++    setGlucose(m.glucose?.value == null ? "" : String(m.glucose.value));
++    setGlucoseContext(m.glucose?.context == null ? "" : String(m.glucose.context));
++    setSystolic(m.bloodPressure?.systolicValue == null ? "" : String(m.bloodPressure.systolicValue));
++    setDiastolic(m.bloodPressure?.diastolicValue == null ? "" : String(m.bloodPressure.diastolicValue));
++  }, [metrics.data]);
++
++  const nullable = (v: string): number | null => {
++    if (!v.trim()) return null;
++    const n = Number(v);
++    return Number.isFinite(n) ? n : Number.NaN;
++  };
++
++  const save = async () => {
++    const h = nullable(hba1c), g = nullable(glucose), s = nullable(systolic), d = nullable(diastolic);
++    if ([h, g, s, d].some((x) => x != null && Number.isNaN(x))) return toast.push("Giá trị chỉ số phải là số hợp lệ.", "error");
++    if (g != null && !glucoseContext) return toast.push("Đường huyết phải chọn thời điểm đo.", "error");
++    if ((s == null) !== (d == null)) return toast.push("Huyết áp phải nhập đủ cả tâm thu và tâm trương.", "error");
++    if (s != null && d != null && s <= d) return toast.push("Huyết áp tâm thu phải lớn hơn tâm trương.", "error");
++    setSaving(true);
++    try {
++      const cur = metrics.data;
++      await data.visits.saveHealthMetrics(visit.id, {
++        glucose: g,
++        glucoseContext: g == null ? null : Number(glucoseContext),
++        glucoseNote: null,
++        glucoseRowVersion: cur?.glucose?.rowVersion ?? null,
++        hbA1c: h,
++        hbA1cNote: null,
++        hbA1cRowVersion: cur?.hbA1c?.rowVersion ?? null,
++        systolicBp: s,
++        diastolicBp: d,
++        bloodPressureNote: null,
++        systolicRowVersion: cur?.bloodPressure?.metricType === 3 ? cur.bloodPressure.rowVersion : cur?.bloodPressure?.pairRowVersion ?? null,
++        diastolicRowVersion: cur?.bloodPressure?.metricType === 4 ? cur.bloodPressure.rowVersion : cur?.bloodPressure?.pairRowVersion ?? null,
++      });
++      toast.push("Đã lưu chỉ số của lượt.", "success");
++      metrics.reload();
++    } catch (e) {
++      toast.push((e as Error).message, "error");
++      metrics.reload(); // rowVersion có thể đã cũ
++    } finally {
++      setSaving(false);
++    }
++  };
++
++  return (
++    <Panel
++      title={`1. Chỉ số lâm sàng — lượt #${visit.id}`}
++      action={
++        <Button kind="primary" busy={saving} onClick={save}>
++          Lưu chỉ số
++        </Button>
++      }
++    >
++      <p className="muted">
++        HbA1c và huyết áp được AI dùng để tính điểm nguy cơ (huyết áp chỉ với Type 2, cần ≥ 3 lần đo hợp lệ). Để trống nếu không đo.
++      </p>
++      <LoadState loading={metrics.loading} error={metrics.error} onRetry={metrics.reload}>
++        <div className="form-row three">
++          <Field labelText="HbA1c (%)">
++            <input type="number" step="0.1" value={hba1c} onChange={(e) => setHba1c(e.target.value)} />
++          </Field>
++          <Field labelText="Huyết áp tâm thu (mmHg)">
++            <input type="number" value={systolic} onChange={(e) => setSystolic(e.target.value)} />
++          </Field>
++          <Field labelText="Huyết áp tâm trương (mmHg)">
++            <input type="number" value={diastolic} onChange={(e) => setDiastolic(e.target.value)} />
++          </Field>
++          <Field labelText="Đường huyết (mmol/L)">
++            <input type="number" step="0.1" value={glucose} onChange={(e) => setGlucose(e.target.value)} />
++          </Field>
++          <Field labelText="Thời điểm đo đường huyết">
++            <select value={glucoseContext} onChange={(e) => setGlucoseContext(e.target.value)}>
++              {metricContexts.map((c, i) => (
++                <option key={i} value={i === 0 ? "" : String(i)}>{c || "— chọn —"}</option>
++              ))}
++            </select>
++          </Field>
++        </div>
++      </LoadState>
++    </Panel>
++  );
++}
++
++/* ---------------------------------------------------------------- 2. ảnh + AI */
++interface Entry {
++  img: FundusImageDto;
++  dx: AiDiagnosisDto | null;
++}
++
++function EyesPanel({
++  patient,
++  visit,
++  onChanged,
++}: {
++  patient: PatientDetailDto;
++  visit: VisitDto;
++  onChanged: () => void;
++}) {
++  const data = useData();
++  const list = useAsync(async (): Promise<Entry[]> => {
++    const imgs = await data.images.list({ patientId: patient.id, visitId: visit.id });
++    return Promise.all(
++      imgs.map(async (img) => {
++        try {
++          const all = await data.diagnoses.byImage(img.id);
++          return { img, dx: all[0] ?? null };
++        } catch {
++          return { img, dx: null };
++        }
++      }),
++    );
++  }, [patient.id, visit.id]);
++
++  const latest = (eye: number): Entry | null =>
++    (list.data ?? []).filter((x) => x.img.eye === eye).sort((a, b) => b.img.id - a.img.id)[0] ?? null;
++
++  const refresh = () => {
++    list.reload();
++    onChanged();
++  };
++
++  return (
++    <Panel title="2. Ảnh đáy mắt — mắt phải (OD) và mắt trái (OS)">
++      <p className="muted">
++        Với mỗi mắt: nạp ảnh → duyệt chất lượng (Đạt) → chạy AI → mở chi tiết để bác sĩ xác nhận hoặc ghi đè phân độ.
++      </p>
++      <LoadState loading={list.loading} error={list.error} onRetry={list.reload}>
++        <div className="grid2">
++          {[0, 1].map((eye) => (
++            <EyeCard key={eye} eye={eye} patientId={patient.id} visitId={visit.id} entry={latest(eye)} onChanged={refresh} />
++          ))}
++        </div>
++      </LoadState>
++    </Panel>
++  );
++}
++
++function EyeCard({
++  eye,
++  patientId,
++  visitId,
++  entry,
++  onChanged,
++}: {
++  eye: number;
++  patientId: number;
++  visitId: number;
++  entry: Entry | null;
++  onChanged: () => void;
++}) {
++  const data = useData();
++  const toast = useToast();
++  const navigate = useNavigate();
++  const fileRef = useRef<HTMLInputElement>(null);
++  const [file, setFile] = useState<File | null>(null);
++  const [busy, setBusy] = useState("");
++
++  const act = async (key: string, fn: () => Promise<void>) => {
++    setBusy(key);
++    try {
++      await fn();
++    } catch (e) {
++      toast.push((e as Error).message, "error");
++    } finally {
++      setBusy("");
++    }
++  };
++
++  const upload = () =>
++    act("upload", async () => {
++      if (!file) throw new Error("Chọn tệp ảnh JPG/PNG (tối đa 10 MB).");
++      await data.images.upload(file, patientId, visitId, eye);
++      toast.push(`Đã nạp ảnh ${eyes[eye]}.`, "success");
++      setFile(null);
++      if (fileRef.current) fileRef.current.value = "";
++      onChanged();
++    });
++
++  const setQuality = (status: number) =>
++    act("quality", async () => {
++      if (!entry) return;
++      await data.images.quality(entry.img.id, status, undefined, entry.img.rowVersion);
++      toast.push(status === 1 ? "Ảnh đạt chất lượng." : "Đã đánh dấu ảnh không đạt.", "success");
++      onChanged();
++    });
++
++  const run = () =>
++    act("run", async () => {
++      if (!entry) return;
++      await data.diagnoses.run(entry.img.id);
++      toast.push(`Đã chạy đủ 3 model AI cho ${eyes[eye]}.`, "success");
++      onChanged();
++    });
++
++  const replace = () =>
++    act("void", async () => {
++      if (!entry) return;
++      if (!window.confirm(`Thu hồi ảnh ${eyes[eye]} và kết quả AI liên quan để nạp ảnh khác?`)) return;
++      await data.images.void(entry.img.id, "Thay ảnh (nạp nhầm hoặc chất lượng kém)", entry.img.rowVersion);
++      toast.push("Đã thu hồi ảnh.", "success");
++      onChanged();
++    });
++
++  const img = entry?.img;
++  const dx = entry?.dx ?? null;
++  const q = img?.qualityStatus;
++
++  return (
++    <div className="panel" style={{ margin: 0 }}>
++      <div className="panel-h">
++        <span>
++          <EyeBadge eye={eye} /> {eye === 0 ? "Mắt phải" : "Mắt trái"}
++        </span>
++        {img && <StatusBadge text={label(qualityStatuses, q)} kind={q === 1 ? "ok" : q === 2 ? "alert" : "watch"} />}
++      </div>
++      <div className="panel-b">
++        {!img ? (
++          <>
++            <Field labelText="Tệp ảnh" help="JPG/PNG, tối đa 10 MB.">
++              <input ref={fileRef} type="file" accept="image/jpeg,image/png" onChange={(e) => setFile(e.target.files?.[0] || null)} />
++            </Field>
++            <Button kind="primary" busy={busy === "upload"} disabled={!file} onClick={upload}>
++              Nạp ảnh {eyes[eye]}
++            </Button>
++          </>
++        ) : (
++          <>
++            <ProtectedImage imageId={img.id} alt={`Ảnh đáy mắt ${eyes[eye]} #${img.id}`} onClick={() => navigate(dx ? `/fundus/${img.id}?diagnosis=${dx.id}` : `/fundus/${img.id}`)} />
++            <div className="mono" style={{ margin: "4px 0 10px" }}>Ảnh #{img.id}</div>
++
++            {q === 0 && (
++              <div className="split" style={{ gap: 8, display: "flex", flexWrap: "wrap" }}>
++                <Button kind="primary" busy={busy === "quality"} onClick={() => setQuality(1)}>Đạt chất lượng</Button>
++                <Button busy={busy === "quality"} onClick={() => setQuality(2)}>Không đạt</Button>
++              </div>
++            )}
++            {q === 1 && !dx && (
++              <Button kind="primary" busy={busy === "run"} busyText="Đang chạy AI…" onClick={run}>
++                Chạy AI
++              </Button>
++            )}
++            {q === 2 && <p className="muted">Ảnh không đạt — thu hồi và nạp ảnh khác để phân tích.</p>}
++
++            {dx && <DxSummary dx={dx} onOpen={() => navigate(`/fundus/${img.id}?diagnosis=${dx.id}`)} />}
++
++            <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
++              {!dx && <Button onClick={() => navigate(`/fundus/${img.id}`)}>Xem ảnh</Button>}
++              <Button busy={busy === "void"} onClick={replace}>Thay ảnh</Button>
++            </div>
++          </>
++        )}
++      </div>
++    </div>
++  );
++}
++
++function DxSummary({ dx, onOpen }: { dx: AiDiagnosisDto; onOpen: () => void }) {
++  return (
++    <div style={{ marginTop: 8 }}>
++      <table>
++        <tbody>
++          <tr><td>Phân độ AI</td><td><GradeBadge grade={dx.drGrade} /></td></tr>
++          <tr><td>Phân độ suy từ tổn thương</td><td><GradeBadge grade={dx.lesionGradeImplied} /></td></tr>
++          <tr><td>Tổn thương MA / HE / EX / SE</td><td className="mono">{dx.countMA ?? "—"} / {dx.countHE ?? "—"} / {dx.countEX ?? "—"} / {dx.countSE ?? "—"}</td></tr>
++          <tr><td>Bất đồng D ≥ ngưỡng áp dụng</td><td className="mono">{num(dx.disagreement)} ≥ {num(dx.effectiveDisagreementThreshold)}</td></tr>
++          <tr><td>Điểm nguy cơ nền</td><td className="mono">{dx.clinicalRiskScore ?? "—"}</td></tr>
++          <tr><td>Fractal dimension</td><td className="mono">{num(dx.fractalDimension, 3)}</td></tr>
++          <tr>
++            <td>Ưu tiên xem</td>
++            <td>
++              {dx.isDeferred ? <StatusBadge text={dx.deferReasonLabel || "Cần bác sĩ xem trước"} kind="defer" /> : <StatusBadge text="Thường quy" kind="ok" />}
++            </td>
++          </tr>
++          <tr>
++            <td>Xác nhận của bác sĩ</td>
++            <td>
++              {dx.isConfirmed && dx.review ? (
++                <StatusBadge text={`${dx.review.actionLabel}: ${dx.review.finalGradeLabel}`} kind="ok" />
++              ) : (
++                <StatusBadge text="Chưa xác nhận" kind="watch" />
++              )}
++            </td>
++          </tr>
++        </tbody>
++      </table>
++      <div style={{ marginTop: 8 }}>
++        <Button kind={dx.isConfirmed ? "default" : "primary"} onClick={onOpen}>
++          {dx.isConfirmed ? "Xem chi tiết" : "Chi tiết & xác nhận"}
++        </Button>
++      </div>
++    </div>
++  );
++}
++
++/* ---------------------------------------------------------------- 3. đóng lượt */
++function ClosePanel({ visit, onClosed }: { visit: VisitDto; onClosed: () => void }) {
++  const data = useData();
++  const toast = useToast();
++  const [conclusion, setConclusion] = useState("");
++  const [referral, setReferral] = useState(0);
++  const [months, setMonths] = useState<number | "">("");
++  const [busy, setBusy] = useState(false);
++
++  const close = async () => {
++    if (!conclusion.trim()) return toast.push("Kết luận là bắt buộc khi đóng lượt.", "error");
++    setBusy(true);
++    try {
++      await data.visits.close(visit.id, {
++        conclusion: conclusion.trim(),
++        referral,
++        recheckMonths: months === "" ? null : Number(months),
++        rowVersion: visit.rowVersion,
++      });
++      toast.push("Đã đóng lượt thu thập.", "success");
++      onClosed();
++    } catch (e) {
++      toast.push((e as Error).message, "error");
++    } finally {
++      setBusy(false);
++    }
++  };
++
++  return (
++    <Panel title="3. Đóng lượt">
++      <p className="muted">
++        Chỉ đóng được khi mọi ảnh đã duyệt chất lượng, đã chạy AI và mọi kết quả AI đã được bác sĩ xác nhận
++        (hiện: {visit.imageCount} ảnh, {visit.pendingReviewCount} kết quả chờ xác nhận). Đóng lượt xong mới tạo được lượt mới cho cùng bệnh nhân.
++      </p>
++      <Field labelText="Kết luận" required>
++        <textarea rows={3} value={conclusion} onChange={(e) => setConclusion(e.target.value)} />
++      </Field>
++      <div className="form-row two">
++        <Field labelText="Chuyển tuyến">
++          <select value={referral} onChange={(e) => setReferral(Number(e.target.value))}>
++            {referralTypes.map((r, i) => (
++              <option key={i} value={i}>{r}</option>
++            ))}
++          </select>
++        </Field>
++        <Field labelText="Tái khám sau (tháng)" help="Để trống để hệ thống tự xác định theo mức DR đã xác nhận.">
++          <input type="number" min={1} max={24} value={months} onChange={(e) => setMonths(e.target.value ? Number(e.target.value) : "")} />
++        </Field>
++      </div>
++      <Button kind="primary" busy={busy} onClick={close}>
++        Đóng lượt thu thập
++      </Button>
++    </Panel>
++  );
++}
+diff --git a/Frontend/src/lite/LitePatients.tsx b/Frontend/src/lite/LitePatients.tsx
+new file mode 100644
+index 0000000..2b16cd2
+--- /dev/null
++++ b/Frontend/src/lite/LitePatients.tsx
+@@ -0,0 +1,245 @@
++import { useEffect, useState, type FormEvent } from "react";
++import { useNavigate } from "react-router-dom";
++import { useData } from "@/contexts/DataContext";
++import { useToast } from "@/contexts/ToastContext";
++import { useAsync, useDebounce } from "@/lib/hooks";
++import {
++  Button,
++  DataTable,
++  Field,
++  GradeBadge,
++  LoadState,
++  PageHeader,
++  Pagination,
++  Panel,
++} from "@/components/ui";
++import { diabetesTypes, genders, label } from "@/lib/enums";
++import { fmtDate } from "@/lib/format";
++import type { CreatePatientRequest } from "@/types/api";
++
++/* ------------------------------------------------------------------ danh sách */
++export function LitePatientsPage() {
++  const data = useData();
++  const navigate = useNavigate();
++  const [q, setQ] = useState("");
++  const dq = useDebounce(q);
++  const [page, setPage] = useState(1);
++
++  useEffect(() => setPage(1), [dq]);
++
++  const list = useAsync(
++    () =>
++      data.patients.list({
++        q: dq.trim().length >= 2 ? dq.trim() : undefined,
++        page,
++        pageSize: 25,
++      }),
++    [dq, page],
++  );
++
++  return (
++    <>
++      <PageHeader
++        title="Bệnh nhân & ca thu thập"
++        subtitle="Chọn bệnh nhân để nhập chỉ số, nạp ảnh đáy mắt hai mắt và chạy AI."
++        actions={
++          <Button kind="primary" onClick={() => navigate("/cases/new")}>
++            Thêm bệnh nhân
++          </Button>
++        }
++      />
++      <Panel>
++        <div className="toolbar">
++          <input
++            value={q}
++            onChange={(e) => setQ(e.target.value)}
++            placeholder="Tìm theo mã, họ tên hoặc số điện thoại (từ 2 ký tự)"
++            aria-label="Tìm bệnh nhân"
++          />
++        </div>
++        <LoadState
++          loading={list.loading}
++          error={list.error}
++          empty={!list.data?.items.length}
++          onRetry={list.reload}
++          emptyText="Chưa có bệnh nhân. Bấm “Thêm bệnh nhân” để tạo hồ sơ đầu tiên."
++        >
++          <DataTable
++            headers={["Mã", "Họ tên", "Tuổi", "Giới", "Loại ĐTĐ", "Số năm mắc", "DR đã xác nhận", "Lần khám gần nhất", ""]}
++          >
++            {list.data?.items.map((p) => (
++              <tr key={p.id}>
++                <td className="mono">{p.code}</td>
++                <td>{p.fullName}</td>
++                <td className="mono">{p.age}</td>
++                <td>{label(genders, p.gender)}</td>
++                <td>{label(diabetesTypes, p.diabetesType)}</td>
++                <td className="mono">{p.diabetesDurationYears ?? "—"}</td>
++                <td>
++                  <GradeBadge grade={p.latestDrGrade} />
++                </td>
++                <td className="mono">{fmtDate(p.latestVisitDate)}</td>
++                <td>
++                  <Button kind="primary" onClick={() => navigate(`/cases/${p.id}`)}>
++                    Mở ca
++                  </Button>
++                </td>
++              </tr>
++            ))}
++          </DataTable>
++          {list.data && (
++            <Pagination
++              page={list.data.page}
++              pageSize={list.data.pageSize}
++              total={list.data.totalItems}
++              totalPages={list.data.totalPages}
++              rangeLabel={list.data.rangeLabel}
++              onPage={setPage}
++            />
++          )}
++        </LoadState>
++      </Panel>
++    </>
++  );
++}
++
++/* ------------------------------------------------------------------ tạo / sửa */
++type Form = Omit<CreatePatientRequest, "createAccount" | "existingUserId">;
++
++const EMPTY: Form = {
++  fullName: "",
++  gender: 0,
++  dateOfBirth: "",
++  phone: "",
++  address: "",
++  diabetesType: 2,
++  diabetesDurationYears: null,
++  baselineHbA1c: null,
++  note: "",
++};
++
++const num = (v: string): number | null => (v === "" ? null : Number(v));
++
++export function LitePatientFormPage({ id }: { id?: number }) {
++  const data = useData();
++  const toast = useToast();
++  const navigate = useNavigate();
++  const edit = id != null;
++  const [form, setForm] = useState<Form>(EMPTY);
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState("");
++
++  const detail = useAsync(async () => (edit ? data.patients.get(id!) : null), [id]);
++  const patch = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }));
++
++  useEffect(() => {
++    const d = detail.data;
++    if (!d) return;
++    setForm({
++      fullName: d.fullName,
++      gender: d.gender,
++      dateOfBirth: (d.dateOfBirth || "").slice(0, 10),
++      phone: d.phone,
++      address: d.address ?? "",
++      diabetesType: d.diabetesType,
++      diabetesDurationYears: d.diabetesDurationYears ?? null,
++      baselineHbA1c: d.baselineHbA1c ?? null,
++      note: d.note ?? "",
++    });
++  }, [detail.data]);
++
++  async function save(e: FormEvent) {
++    e.preventDefault();
++    setError("");
++    if (!form.fullName.trim()) return setError("Vui lòng nhập họ tên.");
++    if (!form.dateOfBirth) return setError("Vui lòng chọn ngày sinh.");
++    if (!/^\d{10,11}$/.test(form.phone.trim())) return setError("Số điện thoại phải gồm 10 đến 11 chữ số.");
++    setBusy(true);
++    try {
++      const body = {
++        ...form,
++        fullName: form.fullName.trim(),
++        phone: form.phone.trim(),
++        address: form.address?.trim() || null,
++        note: form.note?.trim() || null,
++      };
++      if (edit) {
++        const d = detail.data;
++        if (!d) throw new Error("Chưa tải xong hồ sơ.");
++        await data.patients.update(id!, { ...body, rowVersion: d.rowVersion });
++        toast.push("Đã cập nhật hồ sơ.", "success");
++        navigate(`/cases/${id}`);
++      } else {
++        // Bản thu thập dữ liệu KHÔNG cấp tài khoản đăng nhập cho bệnh nhân.
++        const res = await data.patients.create({ ...body, createAccount: false, existingUserId: null });
++        toast.push("Đã tạo hồ sơ bệnh nhân.", "success");
++        navigate(`/cases/${res.patient.id}`);
++      }
++    } catch (err) {
++      setError((err as Error).message);
++    } finally {
++      setBusy(false);
++    }
++  }
++
++  if (edit && (detail.loading || detail.error)) {
++    return <LoadState loading={detail.loading} error={detail.error} onRetry={detail.reload}>{null}</LoadState>;
++  }
++
++  return (
++    <>
++      <PageHeader
++        title={edit ? "Cập nhật hồ sơ bệnh nhân" : "Thêm bệnh nhân"}
++        subtitle="Các trường lâm sàng (loại ĐTĐ, số năm mắc, HbA1c nền) được dùng để tính điểm nguy cơ của AI."
++      />
++      <Panel>
++        <form onSubmit={save}>
++          <div className="form-row three">
++            <Field labelText="Họ tên" required>
++              <input value={form.fullName} maxLength={70} onChange={(e) => patch("fullName", e.target.value)} />
++            </Field>
++            <Field labelText="Giới tính" required>
++              <select value={form.gender} onChange={(e) => patch("gender", Number(e.target.value))}>
++                {genders.map((g, i) => (
++                  <option key={i} value={i}>{g}</option>
++                ))}
++              </select>
++            </Field>
++            <Field labelText="Ngày sinh" required>
++              <input type="date" value={form.dateOfBirth} onChange={(e) => patch("dateOfBirth", e.target.value)} />
++            </Field>
++            <Field labelText="Số điện thoại" required help="10–11 chữ số.">
++              <input inputMode="numeric" value={form.phone} maxLength={11} onChange={(e) => patch("phone", e.target.value.replace(/\D/g, ""))} />
++            </Field>
++            <Field labelText="Địa chỉ">
++              <input value={form.address ?? ""} maxLength={300} onChange={(e) => patch("address", e.target.value)} />
++            </Field>
++            <Field labelText="Loại đái tháo đường" required help="Type 1 và Type 2 dùng luật nguy cơ khác nhau.">
++              <select value={form.diabetesType} onChange={(e) => patch("diabetesType", Number(e.target.value))}>
++                {diabetesTypes.map((x, i) => (
++                  <option key={i} value={i}>{x}</option>
++                ))}
++              </select>
++            </Field>
++            <Field labelText="Thời gian mắc bệnh (năm)">
++              <input type="number" min="0" max="100" value={form.diabetesDurationYears ?? ""} onChange={(e) => patch("diabetesDurationYears", num(e.target.value))} />
++            </Field>
++            <Field labelText="HbA1c nền (%)">
++              <input type="number" step="0.1" min="3" max="20" value={form.baselineHbA1c ?? ""} onChange={(e) => patch("baselineHbA1c", num(e.target.value))} />
++            </Field>
++            <Field labelText="Ghi chú">
++              <textarea value={form.note ?? ""} maxLength={1000} onChange={(e) => patch("note", e.target.value)} />
++            </Field>
++          </div>
++          {error && <div className="state error" style={{ marginTop: 12 }}>{error}</div>}
++          <div className="modal-actions" style={{ marginTop: 16 }}>
++            <Button type="button" onClick={() => navigate(edit ? `/cases/${id}` : "/cases")}>Hủy</Button>
++            <Button kind="primary" type="submit" busy={busy}>
++              {edit ? "Lưu hồ sơ" : "Tạo hồ sơ"}
++            </Button>
++          </div>
++        </form>
++      </Panel>
++    </>
++  );
++}
+diff --git a/Frontend/src/lite/LiteRoutes.tsx b/Frontend/src/lite/LiteRoutes.tsx
+new file mode 100644
+index 0000000..ec32450
+--- /dev/null
++++ b/Frontend/src/lite/LiteRoutes.tsx
+@@ -0,0 +1,47 @@
++import { Routes, Route, Navigate, useParams } from "react-router-dom";
++import { useAuth } from "@/contexts/AuthContext";
++import { ChangePasswordPage } from "@/pages/AuthPages";
++import { FundusPage } from "@/pages/FundusPage";
++import { LiteGate, LiteLoginPage } from "@/lite/LiteAuth";
++import { LitePatientFormPage, LitePatientsPage } from "@/lite/LitePatients";
++import { LiteCasePage } from "@/lite/LiteCase";
++
++function CaseRoute() {
++  const { id } = useParams();
++  return <LiteCasePage id={Number(id)} />;
++}
++function EditRoute() {
++  const { id } = useParams();
++  return <LitePatientFormPage id={Number(id)} />;
++}
++function FundusRoute() {
++  const { imageId } = useParams();
++  return <FundusPage imageId={Number(imageId)} />;
++}
++
++/* Bảng route của bản Lite. Mọi đường dẫn khác của bản đầy đủ (/triage,
++   /reception/..., /dashboard ...) đều rơi về trang chính qua route "*".
++   Trang xem ảnh /fundus/:imageId dùng lại NGUYÊN trang của bản đầy đủ: chạy
++   AI, xem lesion/vessel, xác nhận hoặc ghi đè phân độ. */
++export function LiteRoutes() {
++  const { user } = useAuth();
++  return (
++    <Routes>
++      <Route path="/login" element={user ? <Navigate to="/cases" replace /> : <LiteLoginPage />} />
++      <Route
++        path="/change-password"
++        element={
++          <LiteGate skipRole>
++            <ChangePasswordPage />
++          </LiteGate>
++        }
++      />
++      <Route path="/cases" element={<LiteGate><LitePatientsPage /></LiteGate>} />
++      <Route path="/cases/new" element={<LiteGate><LitePatientFormPage /></LiteGate>} />
++      <Route path="/cases/:id" element={<LiteGate><CaseRoute /></LiteGate>} />
++      <Route path="/cases/:id/edit" element={<LiteGate><EditRoute /></LiteGate>} />
++      <Route path="/fundus/:imageId" element={<LiteGate><FundusRoute /></LiteGate>} />
++      <Route path="*" element={<Navigate to={user ? "/cases" : "/login"} replace />} />
++    </Routes>
++  );
++}
+diff --git a/Frontend/src/lite/LiteShell.tsx b/Frontend/src/lite/LiteShell.tsx
+new file mode 100644
+index 0000000..d909d15
+--- /dev/null
++++ b/Frontend/src/lite/LiteShell.tsx
+@@ -0,0 +1,77 @@
++import { useState, type ReactNode } from "react";
++import { Link, useLocation } from "react-router-dom";
++import { useAuth } from "@/contexts/AuthContext";
++import { Icon } from "@/components/ui";
++import { initials } from "@/lib/format";
++
++/* Khung ứng dụng rút gọn: dùng lại đúng class CSS của AppShell nhưng chỉ có
++   hai mục điều hướng, không chuông thông báo, không hồ sơ cá nhân. */
++const NAV = [
++  { to: "/cases/new", label: "Thêm bệnh nhân", icon: "plus" },
++  { to: "/cases", label: "Bệnh nhân & ca thu thập", icon: "users" },
++];
++
++export function LiteShell({ children }: { children?: ReactNode }) {
++  const { user, logout } = useAuth();
++  const { pathname } = useLocation();
++  const [navOpen, setNavOpen] = useState(false);
++
++  // "/cases" chỉ sáng khi không phải "/cases/new".
++  const isOn = (to: string) =>
++    to === "/cases"
++      ? pathname === "/cases" || (pathname.startsWith("/cases/") && pathname !== "/cases/new")
++      : pathname === to;
++
++  return (
++    <div className={`app ${navOpen ? "nav-open" : ""}`.trim()}>
++      {navOpen && (
++        <div className="nav-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />
++      )}
++      <aside className="side" onClick={() => setNavOpen(false)}>
++        <div className="logo">DiaCompanion</div>
++        <nav>
++          <div className="nav-group">Thu thập dữ liệu</div>
++          {NAV.map((x) => (
++            <Link key={x.to} to={x.to} className={`navlink ${isOn(x.to) ? "on" : ""}`}>
++              <Icon name={x.icon} />
++              {x.label}
++            </Link>
++          ))}
++        </nav>
++        <div className="nav-spacer" />
++        <div className="side-footer">
++          <Link to="/change-password" className="navlink">
++            <Icon name="lock" />
++            Đổi mật khẩu
++          </Link>
++          <button className="navlink" onClick={logout}>
++            <Icon name="logout" />
++            Đăng xuất
++          </button>
++        </div>
++      </aside>
++
++      <main className="main">
++        <header className="top">
++          <button
++            className="mobile-menu ghost icon-only"
++            onClick={() => setNavOpen((v) => !v)}
++            aria-label={navOpen ? "Đóng menu" : "Mở menu"}
++            aria-expanded={navOpen}
++            title="Menu"
++          >
++            <Icon name="menu" />
++          </button>
++          <small>Thu thập dữ liệu — sàng lọc võng mạc đái tháo đường</small>
++          <div className="top-actions">
++            <div className="user-menu">
++              <span className="avatar">{initials(user?.fullName)}</span>
++              <span>{user?.fullName}</span>
++            </div>
++          </div>
++        </header>
++        <div className="content">{children}</div>
++      </main>
++    </div>
++  );
++}
+diff --git a/Frontend/src/main.lite.tsx b/Frontend/src/main.lite.tsx
+new file mode 100644
+index 0000000..c42fd8e
+--- /dev/null
++++ b/Frontend/src/main.lite.tsx
+@@ -0,0 +1,15 @@
++import React from "react";
++import ReactDOM from "react-dom/client";
++import { LiteApp } from "@/lite/LiteApp";
++import "@/styles/app.css";
++
++/* Điểm vào của bản "Thu thập dữ liệu" (Lite).
++   Build: `npm run build:lite` → dist-lite/. Bản đầy đủ vẫn dùng main.tsx. */
++const container = document.getElementById("root");
++if (!container) throw new Error("Không tìm thấy phần tử #root");
++
++ReactDOM.createRoot(container).render(
++  <React.StrictMode>
++    <LiteApp />
++  </React.StrictMode>,
++);
+diff --git a/Frontend/vite.config.ts b/Frontend/vite.config.ts
+index 46f4503..5a76101 100644
+--- a/Frontend/vite.config.ts
++++ b/Frontend/vite.config.ts
+@@ -1,13 +1,36 @@
+-import { defineConfig } from "vite";
++import { defineConfig, type PluginOption } from "vite";
+ import react from "@vitejs/plugin-react";
+ import path from "path";
+ 
+-export default defineConfig({
+-  plugins: [react()],
+-  resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
+-  server: {
+-    port: 5173,
+-    // Proxy để gọi backend cùng origin khi dev (tránh CORS).
+-    proxy: { "/api": { target: "https://localhost:55403", changeOrigin: true } },
+-  },
++/* `vite build`               → bản đầy đủ  → dist/
++   `vite build --mode lite`   → bản Thu thập dữ liệu → dist-lite/
++   Ở mode lite, index.html được đổi điểm vào sang src/main.lite.tsx nên bundle
++   chỉ chứa các trang Lite (không có triage, kê đơn, admin, blog ...). */
++export default defineConfig(({ mode }) => {
++  const lite = mode === "lite";
++  const liteEntry: PluginOption = {
++    name: "diacompanion-lite-entry",
++    // order "pre": phải đổi điểm vào TRƯỚC khi Vite đọc <script type="module">
++    // để gom bundle; đổi sau thì Vite vẫn build main.tsx (bản đầy đủ).
++    transformIndexHtml: {
++      order: "pre",
++      handler(html) {
++        return lite
++          ? html
++              .replace("/src/main.tsx", "/src/main.lite.tsx")
++              .replace("Console lâm sàng", "Thu thập dữ liệu")
++          : html;
++      },
++    },
++  };
++  return {
++    plugins: [react(), liteEntry],
++    resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
++    build: { outDir: lite ? "dist-lite" : "dist" },
++    server: {
++      port: 5173,
++      // Proxy để gọi backend cùng origin khi dev (tránh CORS).
++      proxy: { "/api": { target: "https://localhost:55403", changeOrigin: true } },
++    },
++  };
+ });
+diff --git a/Lite/LITE_README.md b/Lite/LITE_README.md
+new file mode 100644
+index 0000000..1a4fdeb
+--- /dev/null
++++ b/Lite/LITE_README.md
+@@ -0,0 +1,55 @@
++# DiaCompanion — bản "Thu thập dữ liệu" (Lite)
++
++Bản rút gọn của hệ thống chính thức, chỉ giữ luồng thu thập dữ liệu nghiên cứu:
++
++**tạo bệnh nhân → nhập chỉ số → nạp ảnh đáy mắt 2 mắt → chạy AI → bác sĩ xác nhận → đóng lượt.**
++
++Backend, cơ sở dữ liệu, dịch vụ AI, quy tắc nghiệp vụ và trang xem ảnh `/fundus/:id` là **của bản chính thức, không viết lại**. Bản Lite chỉ bỏ bớt màn hình/endpoint và thêm một giao diện gọn.
++
++## Có gì / không có gì
++
++| Giữ | Bỏ |
++|---|---|
++| Đăng nhập nhân viên, đổi mật khẩu | Ứng dụng bệnh nhân, OTP, SMS gateway |
++| Tạo/sửa/tìm bệnh nhân (không cấp tài khoản) | Triage queue, tái tầm soát, diễn tiến, thống kê |
++| Lượt thu thập: HbA1c, huyết áp, đường huyết | Đơn thuốc, tuân thủ thuốc, lối sống, triệu chứng, feedback, blog |
++| Nạp ảnh OD + OS, duyệt chất lượng, chạy 3 model AI | Quản trị tài khoản, cấu hình, model registry, audit UI, ca trực |
++| Trang xem ảnh: lesion, vessel/fractal, deferral, approve/override | Xuất báo cáo PDF, xuất ca mâu thuẫn |
++| Đóng lượt (bắt buộc kết luận) | Tác vụ nền nhắc thuốc/tái khám |
++
++**Vì sao vẫn có "xác nhận của bác sĩ" và "đóng lượt":** backend không cho đóng lượt khi còn kết quả AI chưa được bác sĩ approve/override, và không cho tạo lượt mới khi bệnh nhân còn lượt mở. Đây cũng là chỗ ghi **phân độ tham chiếu** (`DoctorGrade`) — dữ liệu quan trọng nhất của nghiên cứu.
++
++**Điểm nguy cơ trong bản Lite** chỉ dùng: HbA1c, số năm mắc bệnh, huyết áp (chỉ Type 2, cần ≥ 3 lần đo hợp lệ ⇒ ≥ 3 lượt) và quá hạn tái khám. Tuân thủ thuốc không có (đơn thuốc đã bỏ) nên tính 0 điểm theo BR-04 ("thiếu dữ liệu = 0 điểm").
++
++## Cài đặt (một máy Windows trong bệnh viện)
++
++Cần: SQL Server (Express được), .NET 8 Hosting Bundle, Python 3.10 + `pip install -r ai_service/requirements.txt`, **trọng số AI** (không có trong git — xem `ai_service/HUONG_DAN_MODEL_VERSION.md`), Node 18+ chỉ để build web.
++
++1. **CSDL.** Repo *không* có script tạo schema từ đầu (`Backend/DiaCompanion/Database/` chỉ là các patch). Xuất schema-only từ SQL Server đang chạy của bạn (SSMS → Generate Scripts → *Schema only*) hoặc restore bản sao trống của DB hiện có, rồi tạo DB `DiaCompanion`.
++2. **Khởi tạo dữ liệu nền + tài khoản nghiên cứu:**
++   ```
++   cd Lite
++   python seed_lite.py init --email nghiencuu@benhvien.local --full-name "Nghiên cứu viên" --ai-service-dir ..\ai_service
++   sqlcmd -S .\SQLEXPRESS -d DiaCompanion -i lite_seed.sql
++   ```
++   Script in **một lần** mật khẩu tạm; lần đăng nhập đầu bắt buộc đổi. Tài khoản có đủ hai vai trò Doctor + Receptionist (bản Lite yêu cầu cả hai). Quên mật khẩu: `python seed_lite.py reset-password --email …` rồi chạy file `lite_reset_password.sql`. Xóa `lite_seed.sql` sau khi chạy.
++3. **Backend:** sao `Lite/appsettings.Lite.example.json` thành `appsettings.json` (file này bị `.gitignore`), sửa đường dẫn; đặt biến môi trường `JWT__SIGNINGKEY` (chuỗi ngẫu nhiên dài). `dotnet publish -c Release`, chạy trên IIS (app pool *No Managed Code*) hoặc Kestrel. Kiểm tra `/health`.
++4. **AI service:** đặt `FUNDUS_ROOT` = thư mục **cha** của `fundus` (vd `D:\DiaCompanion\storage`) và `MASK_OUTPUT_ROOT`; chạy `uvicorn app:app --host 127.0.0.1 --port 8000`. Chỉ cho backend gọi.
++5. **Web:** `cd Frontend && npm ci && npm run build:lite` → thư mục `dist-lite/`. Sao `Lite/config.js.example` đè lên `dist-lite/config.js`. Phục vụ bằng IIS có reverse proxy `/api/*` về backend (khi đó để `""` và không cần CORS), hoặc chạy qua Electron: `set DIACOMPANION_DIST=dist-lite`.
++6. **Thử nhanh:** đăng nhập → *Thêm bệnh nhân* → *Bắt đầu lượt thu thập* → nhập chỉ số → nạp ảnh OD/OS → *Đạt chất lượng* → *Chạy AI* → *Chi tiết & xác nhận* → *Đóng lượt*.
++
++## Lấy số liệu
++
++`Lite/export_dataset.sql` xuất một dòng cho mỗi lần chạy AI của mỗi mắt, **đã bỏ họ tên/SĐT/ngày sinh/địa chỉ**, gồm: biến lâm sàng, kết quả 3 model, disagreement, điểm nguy cơ, ngưỡng áp dụng, deferral, phiên bản model và phân độ của bác sĩ.
++
++## Chưa được kiểm chứng — làm trước khi giao
++
++- **Backend chưa được compile** (môi trường soạn thảo không có .NET SDK/NuGet). Thay đổi C# chỉ gồm: xóa 9 controller không dùng và tắt một dòng đăng ký worker. Chạy `dotnet build` để chắc chắn. Project `DiaCompanion.Tests` có test gọi các endpoint đã xóa — không thuộc gói giao.
++- `seed_lite.py` đã chạy thử phần sinh SQL và định dạng băm mật khẩu, **chưa chạy SQL trên SQL Server**; `export_dataset.sql` cũng chưa chạy thử.
++- Giao diện Lite đã qua `tsc`, build (`dist-lite`) và một smoke test jsdom với API giả (`Lite/tests/`); **chưa chạy với backend + AI thật**.
++- Phải chạy thử end-to-end trên máy có backend, SQL Server và trọng số trước khi đưa vào bệnh viện.
++- Lỗi có sẵn ở bản chính thức (không sửa ở đây): `referralTypes` trong `Frontend/src/lib/enums.ts` chỉ có 3 nhãn trong khi enum `ReferralType` của backend có 4 giá trị (nhãn bị lệch từ giá trị 1). Bản Lite dùng danh sách 4 nhãn riêng.
++
++## Lưu ý đạo đức nghiên cứu
++
++Hồ sơ vẫn bắt buộc họ tên, ngày sinh, SĐT (ràng buộc của backend). Nếu nghiên cứu cần dữ liệu ẩn danh ngay từ khâu nhập, cần sửa DTO/service ở backend (chưa làm).
+diff --git a/Lite/appsettings.Lite.example.json b/Lite/appsettings.Lite.example.json
+new file mode 100644
+index 0000000..21d643b
+--- /dev/null
++++ b/Lite/appsettings.Lite.example.json
+@@ -0,0 +1,22 @@
++{
++  "ConnectionStrings": {
++    "Default": "Server=localhost\\SQLEXPRESS;Database=DiaCompanion;Trusted_Connection=True;TrustServerCertificate=True"
++  },
++  "Jwt": {
++    "Issuer": "diacompanion",
++    "Audience": "diacompanion-web",
++    "ExpiryMinutes": 480
++  },
++  "Storage": {
++    "FundusRoot": "D:\\DiaCompanion\\storage\\fundus",
++    "AiMasksRoot": "D:\\DiaCompanion\\storage\\ai_masks",
++    "MaxUploadBytes": 10485760
++  },
++  "AiService": {
++    "BaseUrl": "http://127.0.0.1:8000",
++    "TimeoutSeconds": 120
++  },
++  "Clinic": {
++    "TimeZone": "SE Asia Standard Time"
++  }
++}
+diff --git a/Lite/config.js.example b/Lite/config.js.example
+new file mode 100644
+index 0000000..6bd08dd
+--- /dev/null
++++ b/Lite/config.js.example
+@@ -0,0 +1,4 @@
++/* Đặt cạnh index.html của bản Lite (dist-lite/config.js). Sửa được sau khi build.
++   ""                       → cùng origin: IIS/Nginx reverse proxy /api/* tới backend (khuyến nghị)
++   "http://192.168.1.10:5080" → gọi thẳng backend (origin trang web phải nằm trong CORS ở Program.cs) */
++window.__DIACOMPANION_API__ = "";
+diff --git a/Lite/export_dataset.sql b/Lite/export_dataset.sql
+new file mode 100644
+index 0000000..3fab2f7
+--- /dev/null
++++ b/Lite/export_dataset.sql
+@@ -0,0 +1,55 @@
++/* Xuất bộ dữ liệu nghiên cứu: MỘT DÒNG = một lần chạy AI của một mắt (đã loại bản ghi void).
++   ĐÃ BỎ mọi trường định danh (họ tên, SĐT, ngày sinh, địa chỉ) — chỉ giữ mã bệnh nhân và tuổi.
++   Chạy trong SSMS rồi "Save Results As… CSV", hoặc:
++     sqlcmd -S <server> -d DiaCompanion -W -s "," -i export_dataset.sql -o dataset.csv
++   Tên bảng/cột lấy từ Entities + Report 4; CHƯA chạy thử trên SQL Server — kiểm tra trước khi dùng. */
++SELECT
++    p.Code                                              AS PatientCode,
++    p.Gender,
++    DATEDIFF(YEAR, p.DateOfBirth, v.VisitDate)          AS AgeAtVisit,
++    p.DiabetesType,
++    p.DiabetesDurationYears,
++    p.BaselineHbA1c,
++    v.Id                                                AS VisitId,
++    v.VisitDate,
++    v.Status                                            AS VisitStatus,
++    v.RecheckMonths,
++    (SELECT TOP 1 m.Value FROM dbo.HealthMetrics m WHERE m.VisitId = v.Id AND m.MetricType = 2 AND m.IsDeleted = 0 ORDER BY m.Id DESC) AS VisitHbA1c,
++    (SELECT TOP 1 m.Value FROM dbo.HealthMetrics m WHERE m.VisitId = v.Id AND m.MetricType = 1 AND m.IsDeleted = 0 ORDER BY m.Id DESC) AS VisitGlucose_mmolL,
++    (SELECT TOP 1 m.Value FROM dbo.HealthMetrics m WHERE m.VisitId = v.Id AND m.MetricType = 3 AND m.IsDeleted = 0 ORDER BY m.Id DESC) AS VisitSystolicBp,
++    (SELECT TOP 1 m.Value FROM dbo.HealthMetrics m WHERE m.VisitId = v.Id AND m.MetricType = 4 AND m.IsDeleted = 0 ORDER BY m.Id DESC) AS VisitDiastolicBp,
++    i.Id                                                AS ImageId,
++    CASE i.Eye WHEN 0 THEN 'OD' ELSE 'OS' END           AS Eye,
++    i.QualityStatus,                                    -- 0 chờ duyệt, 1 đạt, 2 không đạt
++    d.Id                                                AS DiagnosisId,
++    d.CreatedAt                                         AS AiRunAtUtc,
++    d.DrGrade                                           AS AiGrade,
++    d.LesionGradeImplied,
++    d.CountMA, d.CountHE, d.CountEX, d.CountSE,
++    d.AreaMA,  d.AreaHE,  d.AreaEX,  d.AreaSE,
++    d.Disagreement,
++    d.ClinicalRiskScore,
++    d.ClinicalRiskFactors,
++    d.EffectiveDisagreementThreshold,
++    d.IsDeferred,
++    d.DeferReason,
++    d.FractalDimension, d.FractalSt, d.FractalSn, d.FractalIt, d.FractalIn,
++    d.FractalAsymmetry, d.FractalTn, d.Lacunarity,
++    mvDr.Name                                           AS DrModelVersion,
++    mvLe.Name                                           AS LesionModelVersion,
++    mvFr.Name                                           AS FractalModelVersion,
++    r.Action                                            AS ReviewAction,   -- 0 phê duyệt, 1 ghi đè
++    r.FinalGrade                                        AS DoctorGrade,    -- phân độ tham chiếu của bác sĩ
++    r.Reason                                            AS OverrideReason,
++    r.CreatedAt                                         AS ReviewedAtUtc
++FROM dbo.AiDiagnoses d
++JOIN dbo.FundusImages   i  ON i.Id = d.FundusImageId
++JOIN dbo.MedicalVisits  v  ON v.Id = i.VisitId
++JOIN dbo.MedicalRecords mr ON mr.Id = v.MedicalRecordId
++JOIN dbo.Patients       p  ON p.Id = mr.PatientId
++LEFT JOIN dbo.DiagnosisReviews r ON r.AiDiagnosisId = d.Id AND r.IsVoided = 0
++LEFT JOIN dbo.ModelVersions mvDr ON mvDr.Id = d.ModelVersionId
++LEFT JOIN dbo.ModelVersions mvLe ON mvLe.Id = d.LesionModelVersionId
++LEFT JOIN dbo.ModelVersions mvFr ON mvFr.Id = d.FractalModelVersionId
++WHERE d.IsVoided = 0 AND i.IsVoided = 0 AND v.IsVoided = 0 AND p.IsVoided = 0
++ORDER BY p.Code, v.VisitDate, i.Eye, d.CreatedAt;
+diff --git a/Lite/seed_lite.py b/Lite/seed_lite.py
+new file mode 100644
+index 0000000..3c64c03
+--- /dev/null
++++ b/Lite/seed_lite.py
+@@ -0,0 +1,174 @@
++#!/usr/bin/env python3
++"""
++Sinh script SQL khởi tạo cho bản DiaCompanion "Thu thập dữ liệu" (Lite).
++
++  init            Tạo 4 role (nếu thiếu), 1 tài khoản nghiên cứu có đủ hai vai trò
++                  Doctor + Receptionist (mật khẩu tạm, buộc đổi ở lần đăng nhập
++                  đầu) và 3 phiên bản model AI đang active (DR / Lesion / Fractal).
++  reset-password  Sinh câu UPDATE cấp lại mật khẩu tạm cho tài khoản đã có.
++
++Script CHỈ SINH FILE .sql; không kết nối CSDL. Chạy file đó bằng SSMS hoặc
++    sqlcmd -S <server> -d DiaCompanion -i lite_seed.sql
++Mật khẩu tạm chỉ in ra MỘT lần trên màn hình — hãy ghi lại ngay. Định dạng băm
++khớp PasswordHasher.cs: PBKDF2$100000$<salt b64>$<hash b64> (HMAC-SHA256, 32 byte).
++Toàn bộ SQL sinh ra chạy lại nhiều lần không sao (idempotent).
++"""
++import argparse, base64, glob, hashlib, os, re, secrets, string, sys
++
++ITER, SALT, KEY = 100_000, 16, 32
++ZERO = "0" * 64
++
++
++def pbkdf2(password: str) -> str:
++    salt = os.urandom(SALT)
++    key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, ITER, KEY)
++    b64 = lambda b: base64.b64encode(b).decode("ascii")
++    return f"PBKDF2${ITER}${b64(salt)}${b64(key)}"
++
++
++def verify(password: str, stored: str) -> bool:  # dùng để tự kiểm tra, giống PasswordHasher.Verify
++    p = stored.split("$")
++    if len(p) != 4 or p[0] != "PBKDF2":
++        return False
++    salt, exp = base64.b64decode(p[2]), base64.b64decode(p[3])
++    act = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, int(p[1]), len(exp))
++    return secrets.compare_digest(act, exp)
++
++
++def temp_password() -> str:
++    """12 ký tự, chắc chắn có cả chữ và số (PasswordHasher.EnsureStrong yêu cầu ≥ 8, chữ + số)."""
++    letters = "".join(c for c in string.ascii_letters if c not in "lIO")
++    digits = "23456789"
++    while True:
++        pw = "".join(secrets.choice(letters + digits) for _ in range(12))
++        if any(c in letters for c in pw) and any(c in digits for c in pw):
++            return pw
++
++
++def sha_file(path: str) -> str:
++    h = hashlib.sha256()
++    with open(path, "rb") as f:
++        for chunk in iter(lambda: f.read(1 << 20), b""):
++            h.update(chunk)
++    return h.hexdigest()
++
++
++def sha_folds(folder: str) -> str:
++    """model_1 là ensemble 5 fold: băm nối các tệp fold theo thứ tự tên."""
++    files = sorted(glob.glob(os.path.join(folder, "efficientnet_b4_fold*_best.pth")))
++    if not files:
++        raise FileNotFoundError(folder)
++    h = hashlib.sha256()
++    for p in files:
++        with open(p, "rb") as f:
++            for chunk in iter(lambda: f.read(1 << 20), b""):
++                h.update(chunk)
++    return h.hexdigest()
++
++
++def q(s: str) -> str:
++    return "N'" + s.replace("'", "''") + "'"
++
++
++def models(ai_dir: str, allow_missing: bool):
++    spec = [
++        (1, "dr-efficientnet-b4-v4", "models/model_1/weights", "5-fold EfficientNet-B4 ordinal regression", "0.8378", "NULL", "NULL",
++         lambda: sha_folds(os.path.join(ai_dir, "models/model_1/weights"))),
++        (2, "lesion-unet-effb2-v4.2", "models/model_2/weights/tjdr_unet_v4_2_best.pth", "U-Net EfficientNet-B2, TJDR", "NULL", "0.521", "0.370",
++         lambda: sha_file(os.path.join(ai_dir, "models/model_2/weights/tjdr_unet_v4_2_best.pth"))),
++        (3, "fractal-vessel-keras", "models/model_3/weights/best_model.keras", "Vessel U-Net (Keras) + box-counting FD", "NULL", "NULL", "NULL",
++         lambda: sha_file(os.path.join(ai_dir, "models/model_3/weights/best_model.keras"))),
++    ]
++    out = []
++    for t, name, rel, note, qwk, dice, iou, hasher in spec:
++        try:
++            sha = hasher()
++        except (FileNotFoundError, OSError):
++            if not allow_missing:
++                sys.exit(f"Không tìm thấy trọng số: {rel} (trong {ai_dir}). Đặt trọng số đúng chỗ, "
++                         f"hoặc thêm --allow-missing-weights chỉ để thử.")
++            print(f"[CẢNH BÁO] thiếu {rel} → dùng SHA-256 giả toàn số 0", file=sys.stderr)
++            sha = ZERO
++        out.append((t, name, rel, sha, note, qwk, dice, iou))
++    return out
++
++
++def build_init(a) -> tuple[str, str]:
++    pw = temp_password()
++    h = pbkdf2(pw)
++    assert verify(pw, h)
++    email = a.email.strip()
++    s = []
++    s.append("/* DiaCompanion Lite — khởi tạo dữ liệu nền. Idempotent. Sinh bởi seed_lite.py */")
++    s.append("SET NOCOUNT ON; SET XACT_ABORT ON;\nBEGIN TRAN;\n")
++    for rid, name, disp, desc in [(0, "Admin", "Quản trị viên", "Quản trị và cấu hình toàn bộ hệ thống"),
++                                  (1, "Doctor", "Bác sĩ", "Khám bệnh, chẩn đoán và kết luận hồ sơ"),
++                                  (2, "Receptionist", "Lễ tân", "Tiếp nhận bệnh nhân và tạo lượt khám"),
++                                  (3, "Patient", "Bệnh nhân", "Sử dụng ứng dụng dành cho bệnh nhân")]:
++        s.append(f"IF NOT EXISTS (SELECT 1 FROM dbo.Roles WHERE Name = '{name}')\n"
++                 f"    INSERT INTO dbo.Roles (Id, Name, DisplayName, Description, IsActive) VALUES ({rid}, '{name}', {q(disp)}, {q(desc)}, 1);")
++    s.append(f"""
++DECLARE @email nvarchar(256) = {q(email)};
++IF NOT EXISTS (SELECT 1 FROM dbo.Users WHERE Email = @email)
++    INSERT INTO dbo.Users (PublicId, Email, PasswordHash, FullName, LicenseNo, MustChangePassword, CreatedAt, IsVoided)
++    VALUES (NEWID(), @email, {q(h)}, {q(a.full_name)}, {q(a.license)}, 1, SYSUTCDATETIME(), 0);
++DECLARE @uid int = (SELECT Id FROM dbo.Users WHERE Email = @email);
++
++INSERT INTO dbo.UserRoles (UserId, RoleId, AssignedAt, AssignedBy, IsActive)
++SELECT @uid, r.Id, SYSUTCDATETIME(), @uid, 1
++FROM dbo.Roles r
++WHERE r.Name IN ('Doctor', 'Receptionist')
++  AND NOT EXISTS (SELECT 1 FROM dbo.UserRoles ur WHERE ur.UserId = @uid AND ur.RoleId = r.Id);
++UPDATE ur SET IsActive = 1
++FROM dbo.UserRoles ur JOIN dbo.Roles r ON r.Id = ur.RoleId
++WHERE ur.UserId = @uid AND r.Name IN ('Doctor', 'Receptionist');
++""")
++    for t, name, rel, sha, note, qwk, dice, iou in models(a.ai_service_dir, a.allow_missing_weights):
++        s.append(f"""IF NOT EXISTS (SELECT 1 FROM dbo.ModelVersions WHERE ModelType = {t} AND IsActive = 1)
++    INSERT INTO dbo.ModelVersions (ModelType, Name, FilePath, Sha256, Qwk, Dice, IoU, Note, IsActive, WasActivated, ActivatedAt, CreatedBy, CreatedAt)
++    VALUES ({t}, {q(name)}, {q(rel)}, '{sha}', {qwk}, {dice}, {iou}, {q(note)}, 1, 1, SYSUTCDATETIME(), @uid, SYSUTCDATETIME());""")
++    s.append("\nCOMMIT TRAN;\nSELECT u.Id, u.Email, u.FullName, u.MustChangePassword FROM dbo.Users u WHERE u.Email = @email;\n"
++             "SELECT ModelType, Name, FilePath, IsActive FROM dbo.ModelVersions WHERE IsActive = 1 ORDER BY ModelType;")
++    return "\n".join(s) + "\n", pw
++
++
++def build_reset(a) -> tuple[str, str]:
++    pw = temp_password()
++    h = pbkdf2(pw)
++    assert verify(pw, h)
++    sql = (f"UPDATE dbo.Users SET PasswordHash = {q(h)}, MustChangePassword = 1, UpdatedAt = SYSUTCDATETIME()\n"
++           f"WHERE Email = {q(a.email.strip())} AND IsVoided = 0;\nSELECT @@ROWCOUNT AS RowsUpdated;\n")
++    return sql, pw
++
++
++def main():
++    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
++    sub = ap.add_subparsers(dest="cmd", required=True)
++    i = sub.add_parser("init")
++    i.add_argument("--email", required=True)
++    i.add_argument("--full-name", default="Nghiên cứu viên")
++    i.add_argument("--license", default="NCKH-001", help="số chứng chỉ hành nghề (BR-10: Doctor bắt buộc có)")
++    i.add_argument("--ai-service-dir", default="../ai_service")
++    i.add_argument("--allow-missing-weights", action="store_true", help="chỉ để thử: bỏ qua việc thiếu trọng số")
++    i.add_argument("--out", default="lite_seed.sql")
++    i.add_argument("--password-out", help="ghi mật khẩu tạm vào tệp này (quyền 600) thay vì chỉ in ra màn hình")
++    r = sub.add_parser("reset-password")
++    r.add_argument("--email", required=True)
++    r.add_argument("--out", default="lite_reset_password.sql")
++    r.add_argument("--password-out", help="ghi mật khẩu tạm vào tệp này (quyền 600)")
++    a = ap.parse_args()
++    if not re.fullmatch(r"[^@\s]+@[^@\s]+", a.email):
++        sys.exit("Email không hợp lệ.")
++    sql, pw = build_init(a) if a.cmd == "init" else build_reset(a)
++    with open(a.out, "w", encoding="utf-8-sig") as f:  # BOM để SSMS/sqlcmd đọc đúng tiếng Việt
++        f.write(sql)
++    if a.password_out:
++        with open(a.password_out, "w", encoding="utf-8") as f:
++            f.write(f"Email: {a.email}\nMật khẩu tạm: {pw}\n(Đổi mật khẩu ngay lần đăng nhập đầu, rồi xóa tệp này.)\n")
++        os.chmod(a.password_out, 0o600)
++    print(f"Đã ghi {a.out}")
++    print(f"Email: {a.email}\nMẬT KHẨU TẠM (chỉ hiện một lần): {pw}")
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/Lite/tests/lite.smoke.test.tsx b/Lite/tests/lite.smoke.test.tsx
+new file mode 100644
+index 0000000..ea59a9b
+--- /dev/null
++++ b/Lite/tests/lite.smoke.test.tsx
+@@ -0,0 +1,63 @@
++// @vitest-environment jsdom
++import { describe, it, expect, beforeEach, vi } from "vitest";
++import { render, screen, waitFor } from "@testing-library/react";
++import { MemoryRouter } from "react-router-dom";
++import { AuthProvider } from "@/contexts/AuthContext";
++import { DataProvider } from "@/contexts/DataContext";
++import { ToastProvider } from "@/contexts/ToastContext";
++import { LiteRoutes } from "@/lite/LiteRoutes";
++
++const patient = { id: 7, code: "BN001", fullName: "Nguyen Van A", age: 55, gender: 0, phone: "0912345678", diabetesType: 2, diabetesDurationYears: 8, baselineHbA1c: 8.1, latestDrGrade: null, latestVisitDate: null, hasAccount: false, dateOfBirth: "1970-01-01", createdAt: "2026-01-01T00:00:00Z", visitCount: 1, rowVersion: "AA==" };
++const paged = (items: any[]) => ({ items, page: 1, pageSize: 25, totalItems: items.length, totalPages: 1, rangeLabel: "1–1 / 1" });
++const visit = { id: 11, patientId: 7, patientName: "x", patientCode: "BN001", doctorId: 1, visitDate: "2026-09-20T01:00:00Z", status: 0, imageCount: 1, pendingReviewCount: 1, rowVersion: "AA==" };
++const img = { id: 21, patientId: 7, visitId: 11, eye: 0, qualityStatus: 1, createdAt: "2026-09-20T01:00:00Z", rowVersion: "AA==" };
++const dx = { id: 31, fundusImageId: 21, eye: 0, drGrade: 0, drGradeLabel: "Normal", lesionGradeImplied: 3, disagreement: 0.75, effectiveDisagreementThreshold: 0.35, clinicalRiskScore: 0, countMA: 0, countHE: 0, countEX: 55, countSE: 0, isDeferred: true, deferReasonLabel: "Bất đồng cao", hasLesionMask: true, hasFractalImage: true, createdAt: "2026-09-20T01:05:00Z", isConfirmed: false };
++const calls: string[] = [];
++function route(url: string, init?: any) {
++  const path = url.replace(/^https?:\/\/[^/]+/, "");
++  calls.push((init?.method || "GET") + " " + path);
++  if (path.startsWith("/api/patients?")) return paged([patient]);
++  if (path === "/api/patients/7") return patient;
++  if (path.startsWith("/api/visits?")) return paged([visit]);
++  if (path === "/api/visits/11/health-metrics") return { visitId: 11 };
++  if (path.startsWith("/api/images?")) return [img];
++  if (path === "/api/images/21/content") return null;
++  if (path === "/api/diagnoses/by-image/21") return [dx];
++  return {};
++}
++beforeEach(() => {
++  calls.length = 0;
++  sessionStorage.setItem("diacompanion.token", "t");
++  sessionStorage.setItem("diacompanion.user", JSON.stringify({ userId: 1, fullName: "NCV", roles: ["Doctor", "Receptionist"], mustChangePassword: false, defaultRoute: "/triage" }));
++  (globalThis as any).fetch = vi.fn(async (url: string, init: any) => {
++    const body = route(String(url), init);
++    if (String(url).includes("/content")) return new Response(new Blob(["x"]), { status: 200 });
++    return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
++  });
++  (URL as any).createObjectURL = () => "blob:x"; (URL as any).revokeObjectURL = () => {};
++});
++const app = (path: string) => render(<MemoryRouter initialEntries={[path]}><AuthProvider><DataProvider><ToastProvider><LiteRoutes /></ToastProvider></DataProvider></AuthProvider></MemoryRouter>);
++
++describe("Lite smoke", () => {
++  it("legacy landing /triage redirects to the patient list", async () => {
++    app("/triage");
++    await screen.findByText("BN001");
++    expect(screen.getByText("Thêm bệnh nhân", { selector: "button" })).toBeTruthy();
++    expect(calls.some((c) => c.includes("/api/engagement") || c.includes("/api/triage"))).toBe(false);
++  });
++  it("case workspace shows metrics, both eyes, AI summary and close panel", async () => {
++    app("/cases/7");
++    await screen.findByText(/1\. Chỉ số lâm sàng/);
++    await screen.findByText(/Mắt phải/); await screen.findByText(/Mắt trái/);
++    await screen.findByText("Nạp ảnh OS");
++    await screen.findByText(/0\.75 ≥ 0\.35|0,75 ≥ 0,35/);
++    await screen.findByText("Bất đồng cao");
++    await screen.findByText("Chi tiết & xác nhận");
++    await screen.findByText("3. Đóng lượt");
++  });
++  it("account without both roles is blocked", async () => {
++    sessionStorage.setItem("diacompanion.user", JSON.stringify({ userId: 1, fullName: "X", roles: ["Doctor"], mustChangePassword: false, defaultRoute: "/triage" }));
++    app("/cases");
++    await screen.findByText(/chưa đủ quyền/);
++  });
++});
+diff --git a/Lite/tests/vitest.config.ts b/Lite/tests/vitest.config.ts
+new file mode 100644
+index 0000000..7ce909a
+--- /dev/null
++++ b/Lite/tests/vitest.config.ts
+@@ -0,0 +1,4 @@
++import { defineConfig } from "vitest/config";
++import react from "@vitejs/plugin-react";
++import path from "path";
++export default defineConfig({ plugins: [react()], resolve: { alias: { "@": path.resolve("/home/claude/repo/Frontend/src") } }, test: { include: ["src/**/*.test.tsx"] } });
+diff --git a/ai-weights/model_1/.gitkeep b/ai-weights/model_1/.gitkeep
+new file mode 100644
+index 0000000..e69de29
+diff --git a/ai-weights/model_2/.gitkeep b/ai-weights/model_2/.gitkeep
+new file mode 100644
+index 0000000..e69de29
+diff --git a/ai-weights/model_3/.gitkeep b/ai-weights/model_3/.gitkeep
+new file mode 100644
+index 0000000..e69de29
+diff --git a/docker-compose.yml b/docker-compose.yml
+new file mode 100644
+index 0000000..9b8a295
+--- /dev/null
++++ b/docker-compose.yml
+@@ -0,0 +1,116 @@
++# DiaCompanion Lite — toàn bộ hệ thống trong một lệnh:
++#   1) cp .env.example .env   (hoặc chạy docker/generate-env.ps1 | .sh)  rồi sửa giá trị
++#   2) đặt trọng số AI vào ./ai-weights/model_1 | model_2 | model_3
++#   3) docker compose up -d --build
++#   4) mở http://localhost:${WEB_PORT}   — mật khẩu tạm ở ./secrets/initial_credentials.txt
++name: diacompanion-lite
++
++x-restart: &restart
++  restart: unless-stopped
++
++services:
++  db:
++    <<: *restart
++    image: mcr.microsoft.com/mssql/server:2022-latest
++    environment:
++      ACCEPT_EULA: "Y"
++      MSSQL_PID: Express            # miễn phí, giới hạn 10 GB/DB — đủ cho thu thập dữ liệu
++      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Đặt MSSQL_SA_PASSWORD trong .env}
++      TZ: Asia/Ho_Chi_Minh
++    volumes:
++      - mssql_data:/var/opt/mssql
++    healthcheck:
++      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' >/dev/null || exit 1"]
++      interval: 10s
++      timeout: 5s
++      retries: 30
++      start_period: 30s
++    # Không mở cổng 1433 ra ngoài. Cần SSMS từ máy chủ thì bỏ comment dòng dưới:
++    # ports: ["127.0.0.1:1433:1433"]
++
++  dbinit:
++    build:
++      context: .
++      dockerfile: docker/backend/Dockerfile
++      target: dbinit
++    restart: "no"
++    depends_on:
++      db:
++        condition: service_healthy
++    environment:
++      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
++      LITE_ADMIN_EMAIL: ${LITE_ADMIN_EMAIL:-nghiencuu@benhvien.local}
++      LITE_ADMIN_NAME: ${LITE_ADMIN_NAME:-Nghiên cứu viên}
++      LITE_LICENSE: ${LITE_LICENSE:-NCKH-001}
++      ALLOW_MISSING_WEIGHTS: ${ALLOW_MISSING_WEIGHTS:-0}
++    volumes:
++      # seed_lite.py băm trọng số để ghi vào bảng ModelVersions.
++      - ./ai-weights/model_1:/ai_service/models/model_1/weights:ro
++      - ./ai-weights/model_2:/ai_service/models/model_2/weights:ro
++      - ./ai-weights/model_3:/ai_service/models/model_3/weights:ro
++      - ./secrets:/secrets
++      - ./exports:/exports
++
++  ai:
++    <<: *restart
++    build:
++      context: .
++      dockerfile: docker/ai/Dockerfile
++    volumes:
++      - storage:/data/storage
++      - ./ai-weights/model_1:/app/models/model_1/weights:ro
++      - ./ai-weights/model_2:/app/models/model_2/weights:ro
++      - ./ai-weights/model_3:/app/models/model_3/weights:ro
++    healthcheck:
++      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4).status == 200 else 1)"]
++      interval: 15s
++      timeout: 6s
++      retries: 10
++      start_period: 60s
++
++  backend:
++    <<: *restart
++    build:
++      context: .
++      dockerfile: docker/backend/Dockerfile
++      target: runtime
++    depends_on:
++      dbinit:
++        condition: service_completed_successfully
++      ai:
++        condition: service_started
++    environment:
++      ASPNETCORE_ENVIRONMENT: Production
++      ConnectionStrings__Default: "Server=db;Database=DiaCompanion;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=True"
++      Jwt__SigningKey: ${JWT_SIGNING_KEY:?Đặt JWT_SIGNING_KEY trong .env}
++      Jwt__Issuer: diacompanion
++      Jwt__Audience: diacompanion-web
++      Storage__FundusRoot: /data/storage/fundus
++      Storage__AiMasksRoot: /data/storage/ai_masks
++      AiService__BaseUrl: http://ai:8000
++      AiService__TimeoutSeconds: "300"
++      Clinic__TimeZone: Asia/Ho_Chi_Minh
++      TZ: Asia/Ho_Chi_Minh
++    volumes:
++      - storage:/data/storage
++    healthcheck:
++      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf \"GET /health HTTP/1.0\\r\\n\\r\\n\" >&3 && grep -q healthy <&3'"]
++      interval: 10s
++      timeout: 5s
++      retries: 20
++      start_period: 20s
++
++  web:
++    <<: *restart
++    build:
++      context: .
++      dockerfile: docker/web/Dockerfile
++    depends_on:
++      backend:
++        condition: service_healthy
++    ports:
++      - "${WEB_PORT:-8080}:80"
++
++volumes:
++  mssql_data:
++  storage:
+diff --git a/docker/ai/Dockerfile b/docker/ai/Dockerfile
+new file mode 100644
+index 0000000..80a881a
+--- /dev/null
++++ b/docker/ai/Dockerfile
+@@ -0,0 +1,41 @@
++# syntax=docker/dockerfile:1.6
++# Dịch vụ AI (FastAPI + 3 model). Build context = thư mục gốc repo.
++# Chạy CPU. Trọng số KHÔNG nằm trong image: gắn volume vào /app/models/model_N/weights.
++FROM python:3.11-slim
++
++# libgl1 + libglib2.0-0: cần cho opencv-python (bản không headless) trên image slim.
++RUN apt-get update \
++ && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
++ && rm -rf /var/lib/apt/lists/*
++
++WORKDIR /app
++ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONUNBUFFERED=1
++
++# Phiên bản TensorFlow: model_3 nạp tệp .keras bằng tf.keras.models.load_model.
++# 2.15 (Keras 2.15) là bản thấp nhất mà requirements.txt cho phép; đổi bằng
++#   docker compose build --build-arg TF_VERSION=2.16.2 ai
++# nếu model của bạn được huấn luyện bằng Keras 3.
++ARG TF_VERSION=2.15.1
++# TensorFlow 2.15 cần numpy < 2.
++RUN printf 'numpy<2\n' > /constraints.txt
++COPY ai_service/requirements.txt /tmp/requirements.txt
++RUN pip install --constraint /constraints.txt torch torchvision --index-url https://download.pytorch.org/whl/cpu \
++ && pip install --constraint /constraints.txt "tensorflow-cpu==${TF_VERSION}" \
++ && grep -v -i -E '^(torch|torchvision|tensorflow)([<>=!~ ]|$)' /tmp/requirements.txt > /tmp/rest.txt \
++ && pip install --constraint /constraints.txt -r /tmp/rest.txt
++
++COPY ai_service/app.py ai_service/model_runners.py ./
++COPY ai_service/models/model_1/predict.py models/model_1/predict.py
++COPY ai_service/models/model_2/predict.py models/model_2/predict.py
++COPY ai_service/models/model_3/predict.py models/model_3/predict.py
++
++# UID 1654 trùng người dùng "app" của image backend (chung volume ảnh).
++RUN useradd --uid 1654 --no-create-home --shell /usr/sbin/nologin app \
++ && mkdir -p /data/storage && chown -R 1654:1654 /data /app
++USER 1654
++
++# FUNDUS_ROOT = thư mục CHA của "fundus" (backend lưu đường dẫn dạng fundus/2026/…).
++ENV FUNDUS_ROOT=/data/storage \
++    MASK_OUTPUT_ROOT=/data/storage/ai_masks
++EXPOSE 8000
++CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+diff --git a/docker/backend/Dockerfile b/docker/backend/Dockerfile
+new file mode 100644
+index 0000000..8185954
+--- /dev/null
++++ b/docker/backend/Dockerfile
+@@ -0,0 +1,61 @@
++# syntax=docker/dockerfile:1.6
++# Build context = thư mục gốc repo.  Ba target:
++#   runtime : ASP.NET Core 8 backend
++#   dbinit  : tạo DB, áp schema, seed tài khoản + model, xuất dữ liệu (sqlcmd + python)
++#   (schema : stage trung gian sinh schema.sql)
++
++############################ build ############################
++FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
++WORKDIR /src
++COPY Backend/DiaCompanion/DiaCompanion.csproj DiaCompanion/
++RUN dotnet restore DiaCompanion/DiaCompanion.csproj
++COPY Backend/DiaCompanion/ DiaCompanion/
++RUN dotnet publish DiaCompanion/DiaCompanion.csproj -c Release -o /app --no-restore
++
++############################ schema ###########################
++# Ưu tiên tệp Backend/DiaCompanion/Database/lite_schema.sql nếu bạn tự đặt vào
++# (xuất từ DB đang chạy của bạn — sát bản thật nhất). Nếu không có, sinh DDL từ
++# chính mô hình EF Core (AppDbContext) bằng `dotnet ef dbcontext script`.
++FROM build AS schema
++ENV PATH="${PATH}:/root/.dotnet/tools"
++RUN dotnet tool install --global dotnet-ef --version 8.0.8
++# Chỉ để khởi tạo host lúc sinh script; KHÔNG kết nối CSDL.
++ENV ConnectionStrings__Default="Server=localhost;Database=DiaCompanion;User Id=sa;Password=x;TrustServerCertificate=True" \
++    Jwt__SigningKey="design-time-only-design-time-only-design-time-only" \
++    Jwt__Issuer="design" Jwt__Audience="design" \
++    ASPNETCORE_ENVIRONMENT=Development DOTNET_CLI_TELEMETRY_OPTOUT=1
++RUN if [ -f DiaCompanion/Database/lite_schema.sql ]; then \
++        cp DiaCompanion/Database/lite_schema.sql /schema.sql; \
++    else \
++        dotnet ef dbcontext script --project DiaCompanion/DiaCompanion.csproj --output /schema.sql; \
++    fi \
++ && test -s /schema.sql && grep -q "Patients" /schema.sql
++
++############################ dbinit ###########################
++# Dùng chính image SQL Server làm nền để có sẵn sqlcmd (mssql-tools18).
++FROM mcr.microsoft.com/mssql/server:2022-latest AS dbinit
++USER root
++RUN apt-get update \
++ && apt-get install -y --no-install-recommends python3 \
++ && rm -rf /var/lib/apt/lists/*
++WORKDIR /init
++COPY --from=schema /schema.sql /init/schema.sql
++COPY Lite/seed_lite.py Lite/export_dataset.sql /init/
++COPY docker/backend/dbinit.sh /init/dbinit.sh
++RUN sed -i 's/\r$//' /init/dbinit.sh && chmod +x /init/dbinit.sh
++ENTRYPOINT ["/init/dbinit.sh"]
++CMD ["init"]
++
++############################ runtime ##########################
++FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
++WORKDIR /app
++COPY --from=build /app .
++# UID 1654 = người dùng "app" của image .NET 8; image AI dùng cùng UID để hai
++# container đọc/ghi chung volume ảnh.
++RUN mkdir -p /data/storage && chown -R 1654:1654 /data
++USER 1654
++ENV ASPNETCORE_URLS=http://+:8080 \
++    ASPNETCORE_ENVIRONMENT=Production \
++    DOTNET_gcServer=0
++EXPOSE 8080
++ENTRYPOINT ["dotnet", "DiaCompanion.dll"]
+diff --git a/docker/backend/dbinit.sh b/docker/backend/dbinit.sh
+new file mode 100755
+index 0000000..3a81440
+--- /dev/null
++++ b/docker/backend/dbinit.sh
+@@ -0,0 +1,75 @@
++#!/usr/bin/env bash
++# Khởi tạo / bảo trì CSDL cho DiaCompanion Lite (chạy trong container dbinit).
++#   init             (mặc định) tạo DB → áp schema nếu DB trống → seed nếu chưa có tài khoản
++#   export           xuất bộ dữ liệu nghiên cứu (đã bỏ định danh) ra /exports/dataset.tsv
++#   reset-password   cấp lại mật khẩu tạm cho LITE_ADMIN_EMAIL
++set -euo pipefail
++
++: "${MSSQL_SA_PASSWORD:?Thiếu MSSQL_SA_PASSWORD}"
++DB_HOST="${DB_HOST:-db}"
++DB_NAME="${DB_NAME:-DiaCompanion}"
++EMAIL="${LITE_ADMIN_EMAIL:-nghiencuu@benhvien.local}"
++FULL_NAME="${LITE_ADMIN_NAME:-Nghiên cứu viên}"
++LICENSE="${LITE_LICENSE:-NCKH-001}"
++AI_DIR="${AI_DIR:-/ai_service}"
++
++# Email đi vào câu SQL: chỉ cho phép ký tự an toàn.
++if [[ ! "$EMAIL" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+$ ]]; then
++  echo "LITE_ADMIN_EMAIL không hợp lệ: $EMAIL" >&2; exit 2
++fi
++
++SQLCMD=(/opt/mssql-tools18/bin/sqlcmd -C -b -S "$DB_HOST" -U sa -P "$MSSQL_SA_PASSWORD")
++q() { "${SQLCMD[@]}" -d "$DB_NAME" -h -1 -W -Q "SET NOCOUNT ON; $1" | tr -d '[:space:]'; }
++
++wait_db() {
++  echo "Chờ SQL Server ($DB_HOST)…"
++  for _ in $(seq 1 60); do
++    if "${SQLCMD[@]}" -Q "SELECT 1" >/dev/null 2>&1; then return 0; fi
++    sleep 3
++  done
++  echo "SQL Server không sẵn sàng sau 180 giây." >&2; exit 1
++}
++
++cmd="${1:-init}"
++wait_db
++
++case "$cmd" in
++  init)
++    "${SQLCMD[@]}" -Q "IF DB_ID(N'$DB_NAME') IS NULL CREATE DATABASE [$DB_NAME];"
++    if [ "$(q "SELECT COUNT(*) FROM sys.tables WHERE name = 'Patients'")" = "0" ]; then
++      echo "DB trống → áp schema…"
++      "${SQLCMD[@]}" -d "$DB_NAME" -f 65001 -i /init/schema.sql
++    else
++      echo "Schema đã có — bỏ qua."
++    fi
++    if [ "$(q "SELECT COUNT(*) FROM dbo.Users WHERE Email = N'$EMAIL'")" = "0" ]; then
++      echo "Chưa có tài khoản $EMAIL → seed…"
++      extra=()
++      [ "${ALLOW_MISSING_WEIGHTS:-0}" = "1" ] && extra+=(--allow-missing-weights)
++      python3 /init/seed_lite.py init --email "$EMAIL" --full-name "$FULL_NAME" --license "$LICENSE" \
++        --ai-service-dir "$AI_DIR" --out /tmp/lite_seed.sql --password-out /secrets/initial_credentials.txt "${extra[@]}"
++      "${SQLCMD[@]}" -d "$DB_NAME" -f 65001 -i /tmp/lite_seed.sql
++      rm -f /tmp/lite_seed.sql
++      echo "================================================================"
++      echo " Đăng nhập lần đầu: $EMAIL"
++      echo " Mật khẩu tạm (đổi ngay khi đăng nhập): xem ./secrets/initial_credentials.txt"
++      echo "================================================================"
++    else
++      echo "Tài khoản $EMAIL đã tồn tại — không seed lại."
++    fi
++    echo "dbinit hoàn tất."
++    ;;
++  export)
++    mkdir -p /exports
++    "${SQLCMD[@]}" -d "$DB_NAME" -f 65001 -W -s $'\t' -i /init/export_dataset.sql \
++      | sed -e '2d' -e '/rows affected/d' -e '/^$/d' > /exports/dataset.tsv
++    echo "Đã ghi /exports/dataset.tsv ($(wc -l < /exports/dataset.tsv) dòng gồm tiêu đề)."
++    ;;
++  reset-password)
++    python3 /init/seed_lite.py reset-password --email "$EMAIL" --out /tmp/lite_reset.sql --password-out /secrets/initial_credentials.txt
++    "${SQLCMD[@]}" -d "$DB_NAME" -f 65001 -i /tmp/lite_reset.sql
++    rm -f /tmp/lite_reset.sql
++    echo "Đã cấp lại mật khẩu tạm — xem ./secrets/initial_credentials.txt"
++    ;;
++  *) echo "Lệnh không hỗ trợ: $cmd (init | export | reset-password)" >&2; exit 2 ;;
++esac
+diff --git a/docker/generate-env.ps1 b/docker/generate-env.ps1
+new file mode 100644
+index 0000000..bf7873a
+--- /dev/null
++++ b/docker/generate-env.ps1
+@@ -0,0 +1,23 @@
++# Sinh .env với mật khẩu/khóa ngẫu nhiên (Windows PowerShell 5.1+ / PowerShell 7).
++param([string]$AdminEmail = "nghiencuu@benhvien.local")
++$ErrorActionPreference = "Stop"
++Set-Location (Join-Path $PSScriptRoot "..")
++if (Test-Path .env) { Write-Error ".env đã tồn tại — không ghi đè."; exit 1 }
++function New-Rand([int]$n) {
++  $chars = [char[]]([char]'A'..[char]'Z' + [char]'a'..[char]'z' + [char]'0'..[char]'9')
++  $bytes = New-Object byte[] $n
++  [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
++  -join ($bytes | ForEach-Object { $chars[$_ % $chars.Length] })
++}
++$lines = @(
++  "MSSQL_SA_PASSWORD=Aa1$(New-Rand 21)",
++  "JWT_SIGNING_KEY=$(New-Rand 64)",
++  "LITE_ADMIN_EMAIL=$AdminEmail",
++  "LITE_ADMIN_NAME=Nghiên cứu viên",
++  "LITE_LICENSE=NCKH-001",
++  "WEB_PORT=8080",
++  "ALLOW_MISSING_WEIGHTS=0"
++)
++# UTF-8 không BOM để docker compose đọc đúng tiếng Việt.
++[System.IO.File]::WriteAllLines((Join-Path (Get-Location) ".env"), $lines, (New-Object System.Text.UTF8Encoding($false)))
++Write-Host "Đã tạo .env"
+diff --git a/docker/generate-env.sh b/docker/generate-env.sh
+new file mode 100755
+index 0000000..b72d879
+--- /dev/null
++++ b/docker/generate-env.sh
+@@ -0,0 +1,19 @@
++#!/usr/bin/env bash
++# Sinh .env với mật khẩu/khóa ngẫu nhiên (chỉ ký tự chữ + số để an toàn trong chuỗi kết nối).
++set -euo pipefail
++cd "$(dirname "$0")/.."
++[ -e .env ] && { echo ".env đã tồn tại — không ghi đè." >&2; exit 1; }
++# head đóng ống sớm → tr nhận SIGPIPE; tắt pipefail trong hàm này.
++rand() ( set +o pipefail; LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c "$1" )
++sa="Aa1$(rand 21)"
++{
++  echo "MSSQL_SA_PASSWORD=$sa"
++  echo "JWT_SIGNING_KEY=$(rand 64)"
++  echo "LITE_ADMIN_EMAIL=${1:-nghiencuu@benhvien.local}"
++  echo "LITE_ADMIN_NAME=Nghiên cứu viên"
++  echo "LITE_LICENSE=NCKH-001"
++  echo "WEB_PORT=8080"
++  echo "ALLOW_MISSING_WEIGHTS=0"
++} > .env
++chmod 600 .env
++echo "Đã tạo .env"
+diff --git a/docker/web/Dockerfile b/docker/web/Dockerfile
+new file mode 100644
+index 0000000..73d062b
+--- /dev/null
++++ b/docker/web/Dockerfile
+@@ -0,0 +1,15 @@
++# syntax=docker/dockerfile:1.6
++# Web Lite: build React (mode lite) rồi phục vụ bằng nginx + reverse proxy /api → backend.
++FROM node:20-alpine AS build
++WORKDIR /web
++COPY Frontend/package.json Frontend/package-lock.json ./
++RUN npm ci --no-audit --no-fund
++COPY Frontend/ ./
++RUN npm run build:lite
++
++FROM nginx:1.27-alpine
++COPY docker/web/nginx.conf /etc/nginx/conf.d/default.conf
++COPY --from=build /web/dist-lite/ /usr/share/nginx/html/
++# Cùng origin: trình duyệt gọi /api/* và nginx chuyển tiếp → không cần CORS.
++COPY docker/web/config.js /usr/share/nginx/html/config.js
++EXPOSE 80
+diff --git a/docker/web/config.js b/docker/web/config.js
+new file mode 100644
+index 0000000..eb6d30d
+--- /dev/null
++++ b/docker/web/config.js
+@@ -0,0 +1,2 @@
++/* "" = cùng origin: nginx chuyển tiếp /api/* tới backend. */
++window.__DIACOMPANION_API__ = "";
+diff --git a/docker/web/nginx.conf b/docker/web/nginx.conf
+new file mode 100644
+index 0000000..e08c897
+--- /dev/null
++++ b/docker/web/nginx.conf
+@@ -0,0 +1,49 @@
++# Docker DNS nội bộ; biến upstream giúp nginx khởi động được ngay cả khi backend
++# chưa sẵn sàng (nếu viết proxy_pass tên cố định, nginx thoát ngay khi không phân giải được).
++resolver 127.0.0.11 valid=10s ipv6=off;
++
++server {
++    listen 80;
++    server_name _;
++    root /usr/share/nginx/html;
++    index index.html;
++
++    # Ảnh đáy mắt tối đa 10 MB (+ phần multipart).
++    client_max_body_size 12m;
++
++    # Chạy AI 3 model trên CPU có thể mất hàng chục giây.
++    proxy_read_timeout 300s;
++    proxy_send_timeout 300s;
++
++    location /api/ {
++        set $backend http://backend:8080;
++        proxy_pass $backend;
++        proxy_http_version 1.1;
++        proxy_set_header Host $host;
++        proxy_set_header X-Real-IP $remote_addr;
++        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
++        proxy_set_header X-Forwarded-Proto $scheme;
++        proxy_request_buffering off;
++    }
++
++    location = /health {
++        set $backend http://backend:8080;
++        proxy_pass $backend;
++    }
++
++    # config.js đổi được sau build → không cache.
++    location = /config.js {
++        add_header Cache-Control "no-store";
++    }
++
++    # Tệp băm tên (Vite) cache lâu; index.html thì không.
++    location /assets/ {
++        add_header Cache-Control "public, max-age=31536000, immutable";
++        try_files $uri =404;
++    }
++
++    location / {
++        add_header Cache-Control "no-cache";
++        try_files $uri /index.html;
++    }
++}
+diff --git a/exports/.gitkeep b/exports/.gitkeep
+new file mode 100644
+index 0000000..e69de29
+diff --git a/secrets/.gitkeep b/secrets/.gitkeep
+new file mode 100644
+index 0000000..e69de29

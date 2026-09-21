@@ -1,0 +1,4 @@
+/* Đặt cạnh index.html của bản Lite (dist-lite/config.js). Sửa được sau khi build.
+   ""                       → cùng origin: IIS/Nginx reverse proxy /api/* tới backend (khuyến nghị)
+   "http://192.168.1.10:5080" → gọi thẳng backend (origin trang web phải nằm trong CORS ở Program.cs) */
+window.__DIACOMPANION_API__ = "";

@@ -1,0 +1,52 @@
+# Build files
+bin/
+obj/
+
+# Visual Studio
+.vs/
+.vscode/
+
+# User-specific
+*.user
+*.rsuser
+*.suo
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.*
+
+# ASP.NET Development settings
+appsettings.json
+appsettings.Development.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Bỏ tất cả thư mục weights ở mọi cấp
+**/weights/
+weights/
+
+# Bỏ tất cả thư mục storage ở mọi cấp
+**/storage/
+
+# Bỏ tất cả thư mục venv ở mọi cấp
+**/venv/
+**/publish/
+__pycache__/
+*.pyc
+# Docker (Lite)
+.env
+secrets/*
+exports/*
+ai-weights/model_*/*
+!ai-weights/model_*/.gitkeep
+!secrets/.gitkeep
+!exports/.gitkeep
+**/dist
+**/dist-lite
+**/node_modules
+!.env.example
