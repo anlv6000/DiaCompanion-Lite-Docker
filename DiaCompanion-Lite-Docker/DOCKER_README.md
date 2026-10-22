@@ -1,4 +1,6 @@
-# DiaCompanion Lite — bản build Docker
+# DR AI-Diagnosis: bản build Docker
+
+> **1.3.1 đổi tên project Docker** từ `diacompanion-lite` thành `dr-ai-diagnosis` và database thành `DRAIDiagnosis`. Volume của project cũ (`diacompanion-lite_mssql_data`, `diacompanion-lite_storage`) **không** tự chuyển: `docker compose up -d --build` lần đầu tạo môi trường mới trống. Bản Docker chỉ dùng thử/kiểm thử; dữ liệu thật nằm ở máy cài bộ cài Windows (bộ cài tự chuyển dữ liệu khi nâng cấp). Volume cũ xóa bằng `docker volume rm diacompanion-lite_mssql_data diacompanion-lite_storage` khi không cần nữa.
 
 Một lệnh dựng toàn bộ hệ thống thu thập dữ liệu trên **một máy** (Windows + Docker Desktop, hoặc Linux + Docker Engine):
 
@@ -54,8 +56,8 @@ Kiểm tra: `docker compose ps` (backend/web phải *healthy*), `docker compose 
 | Cấp lại mật khẩu tạm | `docker compose run --rm dbinit reset-password` |
 | Dừng / chạy lại | `docker compose stop` / `docker compose up -d` (dữ liệu nằm trong volume, không mất) |
 | Cập nhật code | `git pull` (hoặc thay mã nguồn) rồi `docker compose up -d --build` |
-| Sao lưu DB | `docker compose exec db /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "<SA>" -Q "BACKUP DATABASE DiaCompanion TO DISK='/var/opt/mssql/dia.bak' WITH INIT"` rồi `docker compose cp db:/var/opt/mssql/dia.bak ./dia.bak` |
-| Sao lưu ảnh + mask | `docker run --rm -v diacompanion-lite_storage:/d -v "${PWD}:/b" alpine tar czf /b/storage.tgz -C /d .` |
+| Sao lưu DB | `docker compose exec db /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "<SA>" -Q "BACKUP DATABASE DRAIDiagnosis TO DISK='/var/opt/mssql/dia.bak' WITH INIT"` rồi `docker compose cp db:/var/opt/mssql/dia.bak ./dia.bak` |
+| Sao lưu ảnh + mask | `docker run --rm -v dr-ai-diagnosis_storage:/d -v "${PWD}:/b" alpine tar czf /b/storage.tgz -C /d .` |
 | **Xóa sạch (mất dữ liệu)** | `docker compose down -v` |
 
 ## Schema CSDL

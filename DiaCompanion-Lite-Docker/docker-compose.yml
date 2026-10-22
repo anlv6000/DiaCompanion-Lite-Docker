@@ -1,9 +1,11 @@
-# DiaCompanion Lite — toàn bộ hệ thống trong một lệnh:
+# DR AI-Diagnosis (trước đây DiaCompanion Lite): toàn bộ hệ thống trong một lệnh:
 #   1) cp .env.example .env   (hoặc chạy docker/generate-env.ps1 | .sh)  rồi sửa giá trị
 #   2) đặt trọng số AI vào ./ai-weights/model_1 | model_2 | model_3
 #   3) docker compose up -d --build
 #   4) mở http://localhost:${WEB_PORT}   — mật khẩu tạm ở ./secrets/initial_credentials.txt
-name: diacompanion-lite
+# 1.3.1: đổi tên project. Volume của project cũ (diacompanion-lite_*) KHÔNG tự chuyển sang; Docker chỉ dùng
+# để thử/kiểm thử, dữ liệu thật nằm ở máy cài bộ cài Windows.
+name: dr-ai-diagnosis
 
 x-restart: &restart
   restart: unless-stopped
@@ -82,14 +84,14 @@ services:
         condition: service_started
     environment:
       ASPNETCORE_ENVIRONMENT: Production
-      ConnectionStrings__Default: "Server=db;Database=DiaCompanion;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=True"
+      ConnectionStrings__Default: "Server=db;Database=DRAIDiagnosis;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=True"
       Jwt__SigningKey: ${JWT_SIGNING_KEY:?Đặt JWT_SIGNING_KEY trong .env}
-      Jwt__Issuer: diacompanion
-      Jwt__Audience: diacompanion-web
+      Jwt__Issuer: dr-ai-diagnosis
+      Jwt__Audience: dr-ai-diagnosis-web
       Storage__FundusRoot: /data/storage/fundus
       Storage__AiMasksRoot: /data/storage/ai_masks
       AiService__BaseUrl: http://ai:8000
-      AiService__TimeoutSeconds: "300"
+      AiService__TimeoutSeconds: "900"
       Clinic__TimeZone: Asia/Ho_Chi_Minh
       TZ: Asia/Ho_Chi_Minh
     volumes:

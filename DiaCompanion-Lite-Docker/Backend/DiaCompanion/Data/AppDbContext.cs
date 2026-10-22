@@ -35,6 +35,9 @@ public class AppDbContext : DbContext
     public DbSet<Feedback> Feedbacks => Set<Feedback>();
     public DbSet<DoctorShift> DoctorShifts => Set<DoctorShift>();
     public DbSet<MedicalRecord> MedicalRecords => Set<MedicalRecord>();
+    public DbSet<BlindGrade> BlindGrades => Set<BlindGrade>();
+    public DbSet<GradingPackage> GradingPackages => Set<GradingPackage>();
+    public DbSet<GradingPackageItem> GradingPackageItems => Set<GradingPackageItem>();
     protected override void OnModelCreating(ModelBuilder b)
     {
         base.OnModelCreating(b);
@@ -268,6 +271,46 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.AiDiagnosisId).OnDelete(DeleteBehavior.NoAction);
             e.HasOne(x => x.Doctor).WithMany()
                 .HasForeignKey(x => x.DoctorId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        /* ---------------------------------------------------- BlindGrades */
+        b.Entity<BlindGrade>(e =>
+        {
+            e.Property(x => x.Grade).HasConversion<byte?>();
+            // Mỗi ảnh có tối đa một phân độ cho mỗi vòng chấm.
+            e.HasIndex(x => new { x.FundusImageId, x.Round }).IsUnique()
+                .HasDatabaseName("UX_BlindGrades_ImageRound");
+            e.HasIndex(x => x.GraderId);
+            e.ToTable(t => t.HasCheckConstraint("CK_BlindGrades_Round", "[Round] BETWEEN 1 AND 3"));
+            e.HasOne(x => x.FundusImage).WithMany()
+                .HasForeignKey(x => x.FundusImageId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne(x => x.Grader).WithMany()
+                .HasForeignKey(x => x.GraderId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne(x => x.SourcePackage).WithMany()
+                .HasForeignKey(x => x.SourcePackageId).OnDelete(DeleteBehavior.NoAction);
+        });
+
+        /* ------------------------------------- GradingPackages (1.3.1) */
+        b.Entity<GradingPackage>(e =>
+        {
+            e.HasIndex(x => x.Code).IsUnique().HasDatabaseName("UX_GradingPackages_Code");
+            e.HasIndex(x => new { x.Round, x.Status }).HasDatabaseName("IX_GradingPackages_RoundStatus");
+            e.Property(x => x.Status).HasConversion<byte>();
+            e.ToTable(t => t.HasCheckConstraint("CK_GradingPackages_Round", "[Round] IN (2, 3)"));
+            e.HasOne(x => x.Grader).WithMany()
+                .HasForeignKey(x => x.GraderId).OnDelete(DeleteBehavior.NoAction);
+        });
+        b.Entity<GradingPackageItem>(e =>
+        {
+            e.HasIndex(x => new { x.PackageId, x.Token }).IsUnique().HasDatabaseName("UX_GradingPackageItems_Token");
+            e.HasIndex(x => new { x.PackageId, x.FundusImageId }).IsUnique().HasDatabaseName("UX_GradingPackageItems_Image");
+            e.HasIndex(x => x.FundusImageId).HasDatabaseName("IX_GradingPackageItems_Image");
+            e.HasOne(x => x.Package).WithMany(p => p.Items)
+                .HasForeignKey(x => x.PackageId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.FundusImage).WithMany()
+                .HasForeignKey(x => x.FundusImageId).OnDelete(DeleteBehavior.NoAction);
+            e.HasOne(x => x.BlindGrade).WithMany()
+                .HasForeignKey(x => x.BlindGradeId).OnDelete(DeleteBehavior.NoAction);
         });
 
         /* -------------------------------------------------- ModelVersions */

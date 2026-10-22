@@ -50,3 +50,20 @@ ai-weights/model_*/*
 **/dist-lite
 **/node_modules
 !.env.example
+
+# Windows installer staging and offline payloads
+installer/build/
+installer/payload/
+
+# Môi trường kiểm thử Docker (docker/test/run-tests)
+test-run/
+docker/test/.test.env
+
+# Bỏ qua thư mục chứa file cài đặt, build nặng và database
+release/
+*.exe
+*.msi
+*.zip
+*.rar
+*.mdf
+*.ldf

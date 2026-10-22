@@ -135,7 +135,9 @@ export function Button({
     .filter(Boolean)
     .join(" ");
   return (
-    <button className={cls} disabled={busy || props.disabled} {...props}>
+    // disabled đặt SAU {...props}: trước 1.3.1 thứ tự ngược lại làm props.disabled=false ghi đè busy,
+    // nút vẫn bấm được khi đang bận (một nguyên nhân của lỗi nạp hai ảnh cùng mắt).
+    <button className={cls} {...props} disabled={busy || props.disabled}>
       {busy ? <span className="mono">…</span> : null}
       {busy && busyText ? busyText : children}
     </button>

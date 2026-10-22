@@ -106,7 +106,7 @@ public class OtpService : IOtpService
             (int)Math.Ceiling(ttl / 60d));
 
         var message =
-            $"DiaCompanion: Ma OTP cua ban la {code}. " +
+            $"DR AI-Diagnosis: Ma OTP cua ban la {code}. " +
             $"Ma co hieu luc trong {ttlMinutes} phut.";
 
         var source =

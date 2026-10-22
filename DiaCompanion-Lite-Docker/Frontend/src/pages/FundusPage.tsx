@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type PointerEvent as ReactPointerEvent,
-  type ReactNode,
-  type CSSProperties,
-} from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useData } from "@/contexts/DataContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,6 +17,8 @@ import {
 } from "@/components/ui";
 import { fmtDate, num } from "@/lib/format";
 import { grades, qualityStatuses } from "@/lib/enums";
+import { PanZoomViewer } from "@/components/PanZoomViewer";
+import { ClinicalContextPanel } from "@/components/ClinicalContext";
 
 export function FundusPage({ imageId }: { imageId: number }) {
   const [sp] = useSearchParams();
@@ -227,6 +222,8 @@ export function FundusPage({ imageId }: { imageId: number }) {
         </div>
       )}
 
+      <ClinicalContextPanel imageId={imageId} compact />
+
       {closedVisit && (
         <div className="state ai-rerun-lock">
           Lượt khám đã đóng. Ảnh, kết quả AI và review của lượt này chỉ được xem.
@@ -246,7 +243,7 @@ export function FundusPage({ imageId }: { imageId: number }) {
         onRetry={diagnoses.reload}
       >
         <div className="ai-result-grid">
-          <PanZoomSquare
+          <PanZoomViewer
             title="Ảnh gốc"
             url={original.url}
             loading={original.loading}
@@ -268,7 +265,7 @@ export function FundusPage({ imageId }: { imageId: number }) {
             }
           />
 
-          <PanZoomSquare
+          <PanZoomViewer
             title="Mask tổn thương"
             url={lesion.url}
             loading={lesion.loading}
@@ -280,7 +277,7 @@ export function FundusPage({ imageId }: { imageId: number }) {
             }
           />
 
-          <PanZoomSquare
+          <PanZoomViewer
             title="Ảnh mạch máu / Fractal"
             url={fractal.url}
             loading={fractal.loading}
@@ -618,117 +615,6 @@ function useBlobImage(
   }, deps);
 
   return { url, loading, error };
-}
-
-function PanZoomSquare({
-  title,
-  url,
-  loading,
-  error,
-  emptyText = "Không có ảnh.",
-  imageStyle,
-  extraTool,
-}: {
-  title: string;
-  url: string;
-  loading: boolean;
-  error: string;
-  emptyText?: string;
-  imageStyle?: CSSProperties;
-  extraTool?: ReactNode;
-}) {
-  const [zoom, setZoom] = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const drag = useRef<{
-    pointerId: number;
-    startX: number;
-    startY: number;
-    originX: number;
-    originY: number;
-  } | null>(null);
-
-  useEffect(() => {
-    setZoom(1);
-    setOffset({ x: 0, y: 0 });
-  }, [url]);
-
-  const changeZoom = (next: number) => {
-    const value = Math.min(6, Math.max(0.5, next));
-    setZoom(value);
-    if (value <= 1) setOffset({ x: 0, y: 0 });
-  };
-
-  const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!url || zoom <= 1) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    drag.current = {
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      startY: e.clientY,
-      originX: offset.x,
-      originY: offset.y,
-    };
-  };
-
-  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!drag.current || drag.current.pointerId !== e.pointerId) return;
-    setOffset({
-      x: drag.current.originX + e.clientX - drag.current.startX,
-      y: drag.current.originY + e.clientY - drag.current.startY,
-    });
-  };
-
-  const stopDrag = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (drag.current?.pointerId === e.pointerId) drag.current = null;
-  };
-
-  return (
-    <section className="panel ai-image-square">
-      <div className="panel-h ai-square-header">
-        <span>{title}</span>
-        <span className="badge mono">{Math.round(zoom * 100)}%</span>
-      </div>
-      <div className="fundus-toolbar ai-square-toolbar">
-        <Button onClick={() => changeZoom(zoom + 0.25)}>+</Button>
-        <Button onClick={() => changeZoom(zoom - 0.25)}>−</Button>
-        <Button
-          onClick={() => {
-            setZoom(1);
-            setOffset({ x: 0, y: 0 });
-          }}
-        >
-          100%
-        </Button>
-        {extraTool}
-      </div>
-      <div
-        className={`fundus ai-panzoom ${zoom > 1 ? "is-zoomed" : ""}`}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={stopDrag}
-        onPointerCancel={stopDrag}
-      >
-        {loading ? (
-          <div>Đang tải ảnh có kiểm quyền…</div>
-        ) : error ? (
-          <div className="ai-image-error">{error}</div>
-        ) : url ? (
-          <img
-            className="viewer-image"
-            src={url}
-            draggable={false}
-            alt={title}
-            style={{
-              transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${zoom})`,
-              ...imageStyle,
-            }}
-          />
-        ) : (
-          <div>{emptyText}</div>
-        )}
-      </div>
-    </section>
-  );
 }
 
 function Info({ k, v }: { k: string; v: ReactNode }) {

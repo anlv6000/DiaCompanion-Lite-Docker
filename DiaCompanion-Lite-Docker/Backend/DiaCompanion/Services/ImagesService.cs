@@ -15,10 +15,21 @@ public class ImagesService : BaseService, IImagesService
     private readonly IVoidService _void;
     private readonly IFileStorageService _storage;
     private readonly IClinicClock _clock;
+    // Bản Lite (bộ cài, Docker): bật. Bản đầy đủ cho phép nhiều ảnh mỗi mắt thì đặt Images:OneActivePerEye = false.
+    private readonly bool _oneImagePerEye;
 
     public ImagesService(IRepository repository, ICurrentUser me, IAuditService audit,
-                            IVoidService voidSvc, IFileStorageService storage, IClinicClock clock)
-    { _repository = repository; _me = me; _audit = audit; _void = voidSvc; _storage = storage; _clock = clock; }
+                            IVoidService voidSvc, IFileStorageService storage, IClinicClock clock,
+                            IConfiguration cfg)
+    {
+        _repository = repository; _me = me; _audit = audit; _void = voidSvc; _storage = storage; _clock = clock;
+        _oneImagePerEye = cfg.GetValue("Images:OneActivePerEye", true);
+    }
+
+    private static string DuplicateEyeMessage(Eye eye) =>
+        $"{(eye == Eye.Od ? "Mắt phải (OD)" : "Mắt trái (OS)")} của lượt khám này đã có ảnh. " +
+        "Muốn đổi ảnh, bấm \"Thay ảnh\" để thu hồi ảnh cũ trước rồi nạp ảnh mới.";
+
     public async Task<ActionResult<List<FundusImageDto>>> List(
         [FromQuery] int? patientId, [FromQuery] int? visitId)
     {
@@ -93,6 +104,12 @@ public class ImagesService : BaseService, IImagesService
         if (visitId is int vid && await _repository.GetVisitForPatientAsync(vid, patientId) is null)
             throw AppException.BadRequest(Msg.RequiredFields, "Lượt khám không thuộc bệnh nhân này.");
 
+        // 1.3.1: mỗi mắt của một lượt khám chỉ có MỘT ảnh còn hiệu lực. Trước đây bấm "Lưu phân độ & chạy AI"
+        // hai lần làm nạp hai ảnh cùng mắt; giao diện chỉ hiện ảnh mới nhất nên ảnh cũ (có kết quả AI chưa
+        // xác nhận) bị ẩn và chặn đóng lượt ("Còn 1/3 kết quả AI ..."). Muốn đổi ảnh: dùng "Thay ảnh".
+        if (_oneImagePerEye && await _repository.GetActiveImageForEyeAsync(visitId, eye) is not null)
+            throw AppException.Conflict(Msg.InvalidData, DuplicateEyeMessage(eye));
+
         await using var stream = file.OpenReadStream();
         var stored = await _storage.SaveFundusAsync(stream, file.FileName, patient.Code, visitId);
 
@@ -111,7 +128,10 @@ public class ImagesService : BaseService, IImagesService
         };
 
         _repository.Add(image);
-        await _repository.CommitAsync();
+        // Hai yêu cầu nạp cùng lúc đều qua được kiểm tra ở trên: chỉ mục duy nhất UX_FundusImages_VisitEye_Active
+        // (migration 20261020) là chốt chặn cuối, yêu cầu đến sau nhận 409 thay vì lỗi 500.
+        if (!await _repository.TryCommitUniqueAsync())
+            throw AppException.Conflict(Msg.InvalidData, DuplicateEyeMessage(eye));
 
         await _audit.LogAsync(AuditAction.ImageUpload, nameof(FundusImage), image.Id,
             null, new { patientId, visitId, eye = eye.ToString(), sha256 = stored.Sha256 });

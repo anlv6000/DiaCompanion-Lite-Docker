@@ -33,6 +33,7 @@ export function roleLabel(role: Role): string {
     case "Receptionist": return "Lễ tân";
     case "Patient": return "Bệnh nhân";
     case "Research": return "Nghiên cứu viên";
+    case "Grader": return "Người chấm độc lập";
     default: return "Admin";
   }
 }

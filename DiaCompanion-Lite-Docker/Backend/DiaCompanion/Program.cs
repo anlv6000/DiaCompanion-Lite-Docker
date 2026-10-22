@@ -80,6 +80,8 @@ builder.Services.AddScoped<IBlogService, BlogService>();
 builder.Services.AddScoped<IDiagnosesService, DiagnosesService>();
 builder.Services.AddScoped<IEngagementService, EngagementService>();
 builder.Services.AddScoped<IExportService, ExportService>();
+builder.Services.AddScoped<IGradingService, GradingService>();
+builder.Services.AddScoped<IGradingPackageService, GradingPackageService>();
 builder.Services.AddScoped<IImagesService, ImagesService>();
 builder.Services.AddScoped<IMonitoringService, MonitoringService>();
 builder.Services.AddScoped<IPatientsService, PatientsService>();
@@ -229,7 +231,7 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title = "DiaCompanion API",
+        Title = "DR AI-Diagnosis API",
         Version = "v1",
         Description = "Hệ thống hỗ trợ sàng lọc bệnh võng mạc đái tháo đường — SET490-G6"
     });
@@ -258,7 +260,7 @@ app.UseMiddleware<ExceptionMiddleware>();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "DiaCompanion API v1"));
+    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "DR AI-Diagnosis API v1"));
 }
 
 app.UseDefaultFiles();

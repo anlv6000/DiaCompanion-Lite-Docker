@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Khởi tạo / bảo trì CSDL cho DiaCompanion Lite (chạy trong container dbinit).
+# Khởi tạo / bảo trì CSDL cho DR AI-Diagnosis (chạy trong container dbinit).
 #   init             (mặc định) tạo DB → áp schema nếu DB trống → seed nếu chưa có tài khoản
 #                    (+ tài khoản Research nếu đặt LITE_RESEARCH_EMAIL)
 #   export           xuất dataset nghiên cứu Gap 2 (CSV, đã bỏ định danh) ra /exports/dataset.csv
@@ -8,7 +8,7 @@ set -euo pipefail
 
 : "${MSSQL_SA_PASSWORD:?Thiếu MSSQL_SA_PASSWORD}"
 DB_HOST="${DB_HOST:-db}"
-DB_NAME="${DB_NAME:-DiaCompanion}"
+DB_NAME="${DB_NAME:-DRAIDiagnosis}"
 EMAIL="${LITE_ADMIN_EMAIL:-nghiencuu@benhvien.local}"
 FULL_NAME="${LITE_ADMIN_NAME:-Nghiên cứu viên}"
 LICENSE="${LITE_LICENSE:-NCKH-001}"
@@ -24,7 +24,9 @@ if [ -n "$RESEARCH_EMAIL" ] && [[ ! "$RESEARCH_EMAIL" =~ $email_re ]]; then
   echo "LITE_RESEARCH_EMAIL không hợp lệ: $RESEARCH_EMAIL" >&2; exit 2
 fi
 
-SQLCMD=(/opt/mssql-tools18/bin/sqlcmd -C -b -S "$DB_HOST" -U sa -P "$MSSQL_SA_PASSWORD")
+# -I: bật QUOTED_IDENTIFIER (sqlcmd mặc định TẮT). Bắt buộc để tạo filtered index trong schema;
+# trùng với mặc định của SqlClient mà bộ cài Windows dùng.
+SQLCMD=(/opt/mssql-tools18/bin/sqlcmd -C -b -I -S "$DB_HOST" -U sa -P "$MSSQL_SA_PASSWORD")
 q() { "${SQLCMD[@]}" -d "$DB_NAME" -h -1 -W -Q "SET NOCOUNT ON; $1" | tr -d '[:space:]'; }
 
 wait_db() {
@@ -72,6 +74,12 @@ case "$cmd" in
       rm -f /tmp/lite_research.sql
       echo " Tài khoản nghiên cứu: $RESEARCH_EMAIL — mật khẩu tạm ở ./secrets/research_credentials.txt"
     fi
+    # Cập nhật cấu trúc DB cho bản mới (idempotent): bảng chấm mù, vai trò Grader...
+    for m in /init/migrations/*.sql; do
+      [ -f "$m" ] || continue
+      echo "Áp migration $(basename "$m")…"
+      "${SQLCMD[@]}" -d "$DB_NAME" -f 65001 -i "$m"
+    done
     echo "dbinit hoàn tất."
     ;;
   export)
@@ -84,6 +92,14 @@ case "$cmd" in
               -e ':a;s/,NULL,/,,/g;ta' -e 's/,NULL$/,/' -e 's/^NULL,/,/'
     } > /exports/dataset.csv
     echo "Đã ghi /exports/dataset.csv ($(( $(wc -l < /exports/dataset.csv) - 1 )) dòng dữ liệu)."
+    ;;
+  add-grader)
+    [ -n "${GRADER_EMAIL:-}" ] || { echo "Đặt GRADER_EMAIL (và GRADER_NAME) khi chạy: docker compose run --rm -e GRADER_EMAIL=... -e GRADER_NAME=... dbinit add-grader" >&2; exit 1; }
+    python3 /init/seed_lite.py add-grader --email "$GRADER_EMAIL" --full-name "${GRADER_NAME:-Người chấm}" \
+      --out /tmp/lite_grader.sql --password-out /secrets/grader_credentials.txt
+    "${SQLCMD[@]}" -d "$DB_NAME" -f 65001 -i /tmp/lite_grader.sql
+    rm -f /tmp/lite_grader.sql
+    echo " Người chấm: $GRADER_EMAIL — mật khẩu tạm ở ./secrets/grader_credentials.txt"
     ;;
   reset-password)
     python3 /init/seed_lite.py reset-password --email "$EMAIL" --out /tmp/lite_reset.sql --password-out /secrets/initial_credentials.txt

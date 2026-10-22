@@ -5,6 +5,12 @@
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<InvariantGlobalization>false</InvariantGlobalization>
+		<!-- 1.3.1: đổi tên sản phẩm thành DR AI-Diagnosis. Tệp chạy là DRAIDiagnosis.exe / .dll.
+		     Namespace và tên thư mục mã nguồn giữ nguyên (DiaCompanion.*): không ai nhìn thấy, đổi chỉ tạo rủi ro. -->
+		<AssemblyName>DRAIDiagnosis</AssemblyName>
+		<RootNamespace>DiaCompanion</RootNamespace>
+		<Product>DR AI-Diagnosis</Product>
+		<Version>1.3.1</Version>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -14,6 +20,11 @@
 		</PackageReference>
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.8" />
 		<PackageReference Include="Swashbuckle.AspNetCore" Version="6.7.0" />
+	</ItemGroup>
+
+	<!-- 1.3.1: trang chấm mù offline, nhúng vào DLL và chép vào mỗi gói chấm. -->
+	<ItemGroup>
+		<EmbeddedResource Include="Resources\GradingPackage\index.html" />
 	</ItemGroup>
 
 </Project>

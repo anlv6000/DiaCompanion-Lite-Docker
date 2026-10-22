@@ -128,10 +128,13 @@ def run_dr(image_path: str) -> dict:
     closeness = 1.0 - min(abs(raw_score - center) / (span / 2.0), 1.0)
     confidence = round(0.5 + 0.49 * closeness, 4)
 
+    # Model hồi quy nên không có softmax. Trường "probabilities" (backend lưu nguyên
+    # dạng JSON) mang điểm liên tục: [điểm ensemble, fold1, ..., foldN].
+    folds = [float(x) for x in raw.get("foldScores", [])]
     return {
         "dr_grade": grade,
         "confidence": confidence,
-        "probabilities": None,  # chưa có softmax thật
+        "probabilities": [round(raw_score, 4)] + [round(x, 4) for x in folds],
     }
 
 

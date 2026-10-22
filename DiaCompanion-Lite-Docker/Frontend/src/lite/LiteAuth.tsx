@@ -9,8 +9,11 @@ import type { LoginResponse } from "@/types/api";
 /** Trang mặc định sau đăng nhập theo vai trò: nghiên cứu → kết xuất, còn lại → danh sách ca. */
 export function liteLanding(user: Pick<LoginResponse, "role" | "roles">): string {
   const research = hasRole(user, "Research");
+  const grader = hasRole(user, "Grader");
   const clinical = hasRole(user, "Doctor") && hasRole(user, "Receptionist");
-  if (research && !clinical) return "/export";
+  if (clinical) return "/cases";
+  if (grader) return "/grading";
+  if (research) return "/export";
   return "/cases";
 }
 
@@ -41,7 +44,7 @@ export function LiteLoginPage() {
     <div className="login">
       <div className="login-card">
         <div className="login-side">
-          <h1>DiaCompanion</h1>
+          <h1>DR AI-Diagnosis</h1>
           <p>Công cụ thu thập dữ liệu sàng lọc bệnh võng mạc đái tháo đường.</p>
           <div className="stack">
             <span>• Tạo hồ sơ, nhập chỉ số, nạp ảnh đáy mắt hai mắt.</span>
@@ -100,7 +103,7 @@ export function LiteGate({
   need = "clinical",
 }: {
   children: ReactElement;
-  need?: "clinical" | "research" | "any";
+  need?: "clinical" | "research" | "grader" | "any";
 }) {
   const { user } = useAuth();
   const location = useLocation();
@@ -111,12 +114,15 @@ export function LiteGate({
 
   const clinical = hasRole(user, "Doctor") && hasRole(user, "Receptionist");
   const research = hasRole(user, "Research");
+  const grader = hasRole(user, "Grader");
   const ok =
     need === "any"
-      ? clinical || research
+      ? clinical || research || grader
       : need === "research"
         ? research || hasRole(user, "Admin")
-        : clinical;
+        : need === "grader"
+          ? grader
+          : clinical;
 
   return (
     <LiteShell>
@@ -128,7 +134,9 @@ export function LiteGate({
           <div>
             {need === "research"
               ? "Cần vai trò Nghiên cứu (Research)."
-              : "Cần đồng thời hai vai trò Doctor và Receptionist."}{" "}
+              : need === "grader"
+                ? "Cần vai trò Người chấm độc lập (Grader)."
+                : "Cần đồng thời hai vai trò Doctor và Receptionist."}{" "}
             Liên hệ quản trị hệ thống.
           </div>
         </div>

@@ -11,4 +11,5 @@ public interface IExportService
 
     /// <summary>Bộ dữ liệu nghiên cứu Gap 2 (CSV, đã bỏ định danh) — vai trò Research/Admin.</summary>
     Task<IActionResult> ResearchDatasetCsv(DateOnly? from, DateOnly? to);
+    Task<IActionResult> GradingCsv();
 }

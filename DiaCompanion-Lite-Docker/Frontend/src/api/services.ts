@@ -375,4 +375,36 @@ export const researchApi = {
   /** CSV dataset nghiên cứu (Gap 2). Trả Blob kèm tên tệp gợi ý. */
   datasetCsv: (from?: string, to?: string) =>
     http.blob("/api/research/dataset.csv" + query({ from, to })),
+  /** Bảng chấm mù: mỗi ảnh một dòng, vòng 1–3 và nhãn tham chiếu. */
+  gradingCsv: () => http.blob("/api/research/grading.csv"),
+};
+
+/* Chấm mù cho nghiên cứu: vòng 1 do bác sĩ khám (trước AI), vòng 2/3 do người chấm độc lập. */
+export const gradingApi = {
+  round1: (imageId: number) =>
+    http.get<T.BlindGradeDto | undefined>(`/api/grading/round1/${imageId}`),
+  submitRound1: (imageId: number, b: T.BlindGradeRequest) =>
+    http.post<T.BlindGradeDto>(`/api/grading/round1/${imageId}`, b),
+  queue: (round: number) =>
+    http.get<T.GradingQueueDto>(`/api/grading/queue/${round}`),
+  content: (imageId: number) => http.blob(`/api/grading/images/${imageId}/content`),
+  context: (imageId: number) =>
+    http.get<T.ImageClinicalContextDto>(`/api/grading/images/${imageId}/context`),
+  submit: (round: number, imageId: number, b: T.BlindGradeRequest) =>
+    http.post<T.BlindGradeDto>(`/api/grading/round/${round}/${imageId}`, b),
+  progress: () => http.get<T.GradingProgressDto>("/api/grading/progress"),
+};
+
+/* 1.3.1: gói chấm mù cho máy khác. Vai trò Research/Admin. */
+export const gradingPackagesApi = {
+  list: () => http.get<T.GradingPackageDto[]>("/api/grading-packages"),
+  graders: () => http.get<T.GraderAccountDto[]>("/api/grading-packages/graders"),
+  create: (b: T.CreateGradingPackageRequest) => http.post<T.GradingPackageDto>("/api/grading-packages", b),
+  download: (id: number) => http.blob(`/api/grading-packages/${id}/download`),
+  cancel: (id: number) => http.post<T.GradingPackageDto>(`/api/grading-packages/${id}/cancel`),
+  importResult: (file: File) => {
+    const f = new FormData();
+    f.append("file", file);
+    return http.upload<T.GradingImportResultDto>("/api/grading-packages/import", f);
+  },
 };

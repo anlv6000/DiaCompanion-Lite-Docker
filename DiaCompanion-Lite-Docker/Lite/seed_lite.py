@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Sinh script SQL khởi tạo cho bản DiaCompanion "Thu thập dữ liệu" (Lite).
+Sinh script SQL khởi tạo cho DR AI-Diagnosis (bản "Thu thập dữ liệu", trước đây là DiaCompanion Lite).
 
   init            Tạo 4 role (nếu thiếu), 1 tài khoản nghiên cứu có đủ hai vai trò
                   Doctor + Receptionist (mật khẩu tạm, buộc đổi ở lần đăng nhập
@@ -8,7 +8,7 @@ Sinh script SQL khởi tạo cho bản DiaCompanion "Thu thập dữ liệu" (Li
   reset-password  Sinh câu UPDATE cấp lại mật khẩu tạm cho tài khoản đã có.
 
 Script CHỈ SINH FILE .sql; không kết nối CSDL. Chạy file đó bằng SSMS hoặc
-    sqlcmd -S <server> -d DiaCompanion -i lite_seed.sql
+    sqlcmd -S <server> -d DRAIDiagnosis -i lite_seed.sql
 Mật khẩu tạm chỉ in ra MỘT lần trên màn hình — hãy ghi lại ngay. Định dạng băm
 khớp PasswordHasher.cs: PBKDF2$100000$<salt b64>$<hash b64> (HMAC-SHA256, 32 byte).
 Toàn bộ SQL sinh ra chạy lại nhiều lần không sao (idempotent).
@@ -94,36 +94,47 @@ def models(ai_dir: str, allow_missing: bool):
 
 
 ROLE_RESEARCH = ("Research", "Nghiên cứu viên", "Chỉ kết xuất dữ liệu nghiên cứu (Gap 2); không truy cập lâm sàng")
+ROLE_GRADER = ("Grader", "Người chấm độc lập", "Chấm mù ảnh đáy mắt vòng 2/3; không thấy AI, không truy cập hồ sơ")
+ROLE_IDS = {"Research": 4, "Grader": 5}
 
 
-def research_sql(email: str) -> tuple[str, str]:
-    """SQL idempotent: role Research (Id 4) + tài khoản chỉ-kết-xuất. Trả (sql, mật khẩu tạm)."""
+def role_account_sql(email: str, role: tuple[str, str, str], full_name: str) -> tuple[str, str]:
+    """SQL idempotent: tạo role (nếu thiếu) + tài khoản chỉ có đúng role đó. Trả (sql, mật khẩu tạm)."""
     rpw = temp_password()
     rh = pbkdf2(rpw)
     assert verify(rpw, rh)
-    name, disp, desc = ROLE_RESEARCH
+    name, disp, desc = role
     sql = f"""
 IF NOT EXISTS (SELECT 1 FROM dbo.Roles WHERE Name = '{name}')
-    INSERT INTO dbo.Roles (Id, Name, DisplayName, Description, IsActive, CreatedAt) VALUES (4, '{name}', {q(disp)}, {q(desc)}, 1, SYSUTCDATETIME());
-DECLARE @remail nvarchar(256) = {q(email.strip())};
-IF NOT EXISTS (SELECT 1 FROM dbo.Users WHERE Email = @remail)
+    INSERT INTO dbo.Roles (Id, Name, DisplayName, Description, IsActive, CreatedAt) VALUES ({ROLE_IDS[name]}, '{name}', {q(disp)}, {q(desc)}, 1, SYSUTCDATETIME());
+DECLARE @remail_{name} nvarchar(256) = {q(email.strip())};
+IF NOT EXISTS (SELECT 1 FROM dbo.Users WHERE Email = @remail_{name})
     INSERT INTO dbo.Users (PublicId, Email, PasswordHash, FullName, MustChangePassword, CreatedAt, IsVoided)
-    VALUES (NEWID(), @remail, {q(rh)}, N'Nghiên cứu viên', 1, SYSUTCDATETIME(), 0);
-DECLARE @ruid int = (SELECT Id FROM dbo.Users WHERE Email = @remail);
+    VALUES (NEWID(), @remail_{name}, {q(rh)}, {q(full_name)}, 1, SYSUTCDATETIME(), 0);
+DECLARE @ruid_{name} int = (SELECT Id FROM dbo.Users WHERE Email = @remail_{name});
 INSERT INTO dbo.UserRoles (UserId, RoleId, AssignedAt, AssignedBy, IsActive)
-SELECT @ruid, r.Id, SYSUTCDATETIME(), @ruid, 1
+SELECT @ruid_{name}, r.Id, SYSUTCDATETIME(), @ruid_{name}, 1
 FROM dbo.Roles r
-WHERE r.Name = 'Research'
-  AND NOT EXISTS (SELECT 1 FROM dbo.UserRoles ur WHERE ur.UserId = @ruid AND ur.RoleId = r.Id);
+WHERE r.Name = '{name}'
+  AND NOT EXISTS (SELECT 1 FROM dbo.UserRoles ur WHERE ur.UserId = @ruid_{name} AND ur.RoleId = r.Id);
 UPDATE ur SET IsActive = 1
 FROM dbo.UserRoles ur JOIN dbo.Roles r ON r.Id = ur.RoleId
-WHERE ur.UserId = @ruid AND r.Name = 'Research';
+WHERE ur.UserId = @ruid_{name} AND r.Name = '{name}';
 """
     return sql, rpw
 
 
+def research_sql(email: str) -> tuple[str, str]:
+    return role_account_sql(email, ROLE_RESEARCH, "Nghiên cứu viên")
+
+
 def add_research(a) -> tuple[str, str, str | None]:
     sql, pw = research_sql(a.email)
+    return "SET NOCOUNT ON; SET XACT_ABORT ON;\nBEGIN TRAN;\n" + sql + "\nCOMMIT TRAN;\n", pw, None
+
+
+def add_grader(a) -> tuple[str, str, str | None]:
+    sql, pw = role_account_sql(a.email, ROLE_GRADER, a.full_name)
     return "SET NOCOUNT ON; SET XACT_ABORT ON;\nBEGIN TRAN;\n" + sql + "\nCOMMIT TRAN;\n", pw, None
 
 
@@ -133,13 +144,14 @@ def build_init(a) -> tuple[str, str, str | None]:
     assert verify(pw, h)
     email = a.email.strip()
     s = []
-    s.append("/* DiaCompanion Lite — khởi tạo dữ liệu nền. Idempotent. Sinh bởi seed_lite.py */")
+    s.append("/* DR AI-Diagnosis: khởi tạo dữ liệu nền. Idempotent. Sinh bởi seed_lite.py */")
     s.append("SET NOCOUNT ON; SET XACT_ABORT ON;\nBEGIN TRAN;\n")
     for rid, name, disp, desc in [(0, "Admin", "Quản trị viên", "Quản trị và cấu hình toàn bộ hệ thống"),
                                   (1, "Doctor", "Bác sĩ", "Khám bệnh, chẩn đoán và kết luận hồ sơ"),
                                   (2, "Receptionist", "Lễ tân", "Tiếp nhận bệnh nhân và tạo lượt khám"),
                                   (3, "Patient", "Bệnh nhân", "Sử dụng ứng dụng dành cho bệnh nhân"),
-                                  (4, "Research", "Nghiên cứu viên", "Chỉ kết xuất dữ liệu nghiên cứu (Gap 2); không truy cập lâm sàng")]:
+                                  (4, "Research", "Nghiên cứu viên", "Chỉ kết xuất dữ liệu nghiên cứu (Gap 2); không truy cập lâm sàng"),
+                                  (5, "Grader", "Người chấm độc lập", "Chấm mù ảnh đáy mắt vòng 2/3; không thấy AI, không truy cập hồ sơ")]:
         s.append(f"IF NOT EXISTS (SELECT 1 FROM dbo.Roles WHERE Name = '{name}')\n"
              f"    INSERT INTO dbo.Roles (Id, Name, DisplayName, Description, IsActive, CreatedAt) VALUES ({rid}, '{name}', {q(disp)}, {q(desc)}, 1, SYSUTCDATETIME());")
     s.append(f"""
@@ -196,6 +208,11 @@ def main():
     ar.add_argument("--email", required=True)
     ar.add_argument("--out", default="lite_add_research.sql")
     ar.add_argument("--password-out", help="ghi mật khẩu tạm vào tệp này (quyền 600)")
+    gr = sub.add_parser("add-grader", help="thêm tài khoản người chấm độc lập (vai trò Grader)")
+    gr.add_argument("--email", required=True)
+    gr.add_argument("--full-name", default="Người chấm")
+    gr.add_argument("--out", default="lite_add_grader.sql")
+    gr.add_argument("--password-out", help="ghi mật khẩu tạm vào tệp này (quyền 600)")
     r = sub.add_parser("reset-password")
     r.add_argument("--email", required=True)
     r.add_argument("--out", default="lite_reset_password.sql")
@@ -203,13 +220,13 @@ def main():
     a = ap.parse_args()
     if not re.fullmatch(r"[^@\s]+@[^@\s]+", a.email):
         sys.exit("Email không hợp lệ.")
-    builders = {"init": build_init, "reset-password": build_reset, "add-research": add_research}
+    builders = {"init": build_init, "reset-password": build_reset, "add-research": add_research, "add-grader": add_grader}
     sql, pw, research_pw = builders[a.cmd](a)
     with open(a.out, "w", encoding="utf-8-sig") as f:  # BOM để SSMS/sqlcmd đọc đúng tiếng Việt
         f.write(sql)
     if a.password_out:
         with open(a.password_out, "w", encoding="utf-8") as f:
-            who = "Nghiên cứu" if a.cmd == "add-research" else "Bác sĩ"
+            who = {"add-research": "Nghiên cứu", "add-grader": "Người chấm"}.get(a.cmd, "Bác sĩ")
             f.write(f"{who} — Email: {a.email}\n         Mật khẩu tạm: {pw}\n")
             if getattr(a, "research_email", None) and research_pw:
                 f.write(f"Nghiên cứu — Email: {a.research_email}\n           Mật khẩu tạm: {research_pw}\n")

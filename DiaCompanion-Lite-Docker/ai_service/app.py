@@ -1,5 +1,5 @@
 """
-app.py — Dịch vụ suy luận AI cho DiaCompanion (FastAPI)
+app.py: dịch vụ suy luận AI cho DR AI-Diagnosis (FastAPI)
 =======================================================
 Ba endpoint riêng, backend C# gọi lần lượt rồi tự gộp:
 
@@ -30,7 +30,38 @@ import model_runners as mr
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("ai_service")
 
-app = FastAPI(title="DiaCompanion AI Inference", version="0.1.0")
+app = FastAPI(title="DR AI-Diagnosis AI Inference", version="0.1.0")
+
+
+def _preload_models():
+    """Nạp sẵn 3 model ngay khi dịch vụ khởi động (chạy nền), để lần phân tích đầu tiên
+    không phải chờ nạp PyTorch/TensorFlow và trọng số — trên máy CPU yếu việc này có thể
+    mất vài phút và làm backend báo "không kết nối được dịch vụ AI"."""
+    import os
+    import sys
+    loaders = {1: "load_ensemble", 2: "load_model", 3: "load_model"}
+    for n, fn in loaders.items():
+        t0 = time.time()
+        try:
+            mr._load_predict(n)
+            getattr(sys.modules[f"ai_service_model_{n}_predict"], fn)()
+            log.info("Preload model %s xong sau %.1f s", n, time.time() - t0)
+        except Exception:  # không để lỗi nạp sẵn làm chết dịch vụ; lỗi thật sẽ hiện khi suy luận
+            log.exception("Preload model %s lỗi", n)
+    _READY["models"] = True
+
+
+_READY = {"models": False}
+
+
+@app.on_event("startup")
+def _startup():
+    import os
+    import threading
+    if os.environ.get("DIACOMPANION_PRELOAD", "1") == "1":
+        threading.Thread(target=_preload_models, name="preload", daemon=True).start()
+    else:
+        _READY["models"] = True
 
 
 class InferRequest(BaseModel):
@@ -47,7 +78,8 @@ class InferRequest(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    # status luôn "ok" khi dịch vụ sống; models_ready cho biết đã nạp sẵn xong chưa.
+    return {"status": "ok", "models_ready": _READY["models"]}
 
 
 @app.post("/infer/dr")

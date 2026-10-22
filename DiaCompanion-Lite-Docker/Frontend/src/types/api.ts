@@ -1,4 +1,4 @@
-export type Role = "Admin" | "Doctor" | "Patient" | "Receptionist" | "Research";
+export type Role = "Admin" | "Doctor" | "Patient" | "Receptionist" | "Research" | "Grader";
 export type StaffRole = Exclude<Role, "Patient">;
 export type DoctorOrReceptionist = "Doctor" | "Receptionist";
 
@@ -782,4 +782,101 @@ export interface AdminUpdatePatientRequest {
   gender: number;
   address?: string | null;
   rowVersion: string;
+}
+/* ---------------------------------------------------------- chấm mù (bản 1.2) */
+export interface BlindGradeRequest {
+  gradable: boolean;
+  grade: number | null;
+  note?: string | null;
+}
+export interface BlindGradeDto {
+  imageId: number;
+  round: number;
+  gradable: boolean;
+  grade?: number | null;
+  gradeLabel?: string | null;
+  note?: string | null;
+  createdAt: string;
+}
+export interface GradingQueueDto {
+  round: number;
+  remaining: number;
+  items: { imageId: number; position: number }[];
+}
+export interface GradingProgressDto {
+  round1: number;
+  round1Ungradable: number;
+  round2Done: number;
+  round2Pending: number;
+  round3Needed: number;
+  round3Done: number;
+  /** 1.3.1: ảnh đang nằm trong gói chấm còn mở (đang chấm ở máy khác). */
+  round2InPackages?: number;
+  round3InPackages?: number;
+}
+
+/* 1.3.1: gói chấm mù cho máy khác (chấm offline bằng trình duyệt). */
+export interface GradingPackageDto {
+  id: number;
+  code: string;
+  round: number;
+  graderId: number;
+  graderName: string;
+  graderEmail?: string | null;
+  /** 0 đang mở, 1 đã nhập đủ, 2 đã hủy. */
+  status: number;
+  createdAt: string;
+  closedAt?: string | null;
+  note?: string | null;
+  itemCount: number;
+  importedCount: number;
+}
+export interface GraderAccountDto {
+  id: number;
+  fullName: string;
+  email?: string | null;
+  round2Available: number;
+  round3Available: number;
+}
+export interface CreateGradingPackageRequest {
+  round: number;
+  graderId: number;
+  maxImages?: number | null;
+  note?: string | null;
+}
+export interface GradingImportIssueDto {
+  position?: number | null;
+  reason: string;
+}
+export interface GradingImportResultDto {
+  packageCode: string;
+  round: number;
+  itemsInFile: number;
+  imported: number;
+  unchanged: number;
+  conflicts: GradingImportIssueDto[];
+  invalid: GradingImportIssueDto[];
+  remaining: number;
+  packageStatus: number;
+}
+
+/** Thông tin lâm sàng hiển thị cạnh ảnh (trang AI, chấm mù vòng 1/2/3).
+    Người chấm độc lập không nhận researchCode và visitDate. */
+export interface ImageClinicalContextDto {
+  imageId: number;
+  eye: number;
+  researchCode?: string | null;
+  visitDate?: string | null;
+  birthYear: number;
+  ageAtVisit?: number | null;
+  gender: number;
+  diabetesType: number;
+  diabetesDurationYears?: number | null;
+  baselineHbA1c?: number | null;
+  patientNote?: string | null;
+  hbA1c?: number | null;
+  systolicBp?: number | null;
+  diastolicBp?: number | null;
+  glucose?: number | null;
+  glucoseContext?: number | null;
 }

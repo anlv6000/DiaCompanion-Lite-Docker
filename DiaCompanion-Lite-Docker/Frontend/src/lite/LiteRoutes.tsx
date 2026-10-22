@@ -4,6 +4,8 @@ import { ChangePasswordPage } from "@/pages/AuthPages";
 import { FundusPage } from "@/pages/FundusPage";
 import { LiteGate, LiteLoginPage, liteLanding } from "@/lite/LiteAuth";
 import { LiteExportPage } from "@/lite/LiteExport";
+import { LiteGradingPage } from "@/lite/LiteGrading";
+import { LitePackagesPage } from "@/lite/LitePackages";
 import { LitePatientFormPage, LitePatientsPage } from "@/lite/LitePatients";
 import { LiteCasePage } from "@/lite/LiteCase";
 
@@ -44,6 +46,10 @@ export function LiteRoutes() {
       <Route path="/fundus/:imageId" element={<LiteGate><FundusRoute /></LiteGate>} />
       {/* Kết xuất dữ liệu: vai trò Research (hoặc Admin). Bác sĩ đăng nhập cũng bị chặn ở backend. */}
       <Route path="/export" element={<LiteGate need="research"><LiteExportPage /></LiteGate>} />
+      {/* 1.3.1: gói chấm mù cho máy khác (vai trò Research/Admin). */}
+      <Route path="/packages" element={<LiteGate need="research"><LitePackagesPage /></LiteGate>} />
+      {/* Người chấm độc lập (vòng 2/3): thấy ảnh + thông tin lâm sàng ẩn danh, không thấy mã bệnh nhân hay AI. */}
+      <Route path="/grading" element={<LiteGate need="grader"><LiteGradingPage /></LiteGate>} />
       <Route path="*" element={<Navigate to={user ? liteLanding(user) : "/login"} replace />} />
     </Routes>
   );

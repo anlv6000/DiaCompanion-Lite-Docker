@@ -1,4 +1,4 @@
-# Sinh .env với mật khẩu/khóa ngẫu nhiên (Windows PowerShell 5.1+ / PowerShell 7).
+﻿# Sinh .env với mật khẩu/khóa ngẫu nhiên (Windows PowerShell 5.1+ / PowerShell 7).
 param([string]$AdminEmail = "bacsi@benhvien.local", [string]$ResearchEmail = "nghiencuu@benhvien.local")
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")

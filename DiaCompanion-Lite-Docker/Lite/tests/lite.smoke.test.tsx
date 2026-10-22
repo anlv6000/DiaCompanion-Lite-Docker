@@ -16,6 +16,10 @@ const imgOld = { id: 15, patientId: 7, visitId: 9, eye: 1, qualityStatus: 1, cre
 const dx = { id: 31, fundusImageId: 21, eye: 0, drGrade: 0, lesionGradeImplied: 3, disagreement: 0.75, effectiveDisagreementThreshold: 0.35, clinicalRiskScore: 0, countMA: 0, countHE: 0, countEX: 55, countSE: 0, isDeferred: true, deferReasonLabel: "Bất đồng cao", hasLesionMask: true, hasFractalImage: true, createdAt: "2026-09-20T01:05:00Z", isConfirmed: false };
 const dxOld = { ...dx, id: 25, fundusImageId: 15, eye: 1, drGrade: 2, isDeferred: false, isConfirmed: true, review: { id: 5, action: 0, actionLabel: "Phê duyệt", finalGrade: 2, finalGradeLabel: "Trung bình" } };
 const calls: string[] = [];
+let dxDeferred = true; // đổi theo từng test
+let blind21: any = { imageId: 21, round: 1, gradable: true, grade: 0, createdAt: "2026-09-20T01:02:00Z" };
+let hasDx21 = true;
+const posted: { path: string; body: any }[] = [];
 
 function route(url: string, init?: any): any {
   const path = url.replace(/^https?:\/\/[^/]+/, "");
@@ -29,7 +33,16 @@ function route(url: string, init?: any): any {
     const v = new URLSearchParams(path.split("?")[1]).get("visitId"); // backend lọc theo visitId
     return [img, imgOld].filter((i) => !v || String(i.visitId) === v);
   }
-  if (path === "/api/diagnoses/by-image/21") return [dx];
+  if (path === "/api/diagnoses/by-image/21") return hasDx21 ? [{ ...dx, isDeferred: dxDeferred }] : [];
+  if (path === "/api/grading/round1/21" && (init?.method || "GET") === "GET") return blind21 ?? undefined;
+  if (path === "/api/grading/round1/15") return { imageId: 15, round: 1, gradable: true, grade: 2, createdAt: "2026-06-01T01:02:00Z" };
+  if (path.startsWith("/api/grading/round1/") && init?.method === "POST") { posted.push({ path, body: JSON.parse(init.body) }); return { imageId: 21, round: 1, gradable: true, grade: 1, createdAt: "x" }; }
+  if (path === "/api/patients" && init?.method === "POST") { posted.push({ path, body: JSON.parse(init.body) }); return { patient: { id: 7 } }; }
+  if (path === "/api/grading/images/21/context") return { imageId: 21, eye: 0, researchCode: null, birthYear: 1968, ageAtVisit: 58, gender: 0, diabetesType: 2, diabetesDurationYears: 12, baselineHbA1c: 7.9, patientNote: "đã laser mắt trái", hbA1c: 8.2, systolicBp: 150, diastolicBp: 90, glucose: 9.1, glucoseContext: 1 };
+  if (path === "/api/grading/progress") return { round1: 4, round1Ungradable: 1, round2Done: 2, round2Pending: 1, round3Needed: 1, round3Done: 0 };
+  if (path === "/api/grading/queue/2") return { round: 2, remaining: 1, items: [{ imageId: 21, position: 1 }] };
+  if (path === "/api/grading/queue/3") return { round: 3, remaining: 0, items: [] };
+  if (path.startsWith("/api/grading/round/") && init?.method === "POST") { posted.push({ path, body: JSON.parse(init.body) }); return {}; }
   if (path === "/api/diagnoses/by-image/15") return [dxOld];
   if (path.startsWith("/api/diagnoses/progression/7")) return { points: [{ date: "2026-06-01", visitId: 9, confirmedGrade: 2, fractalDimension: 1.4, hbA1c: 9.1 }], trendWarning: null };
   return {};
@@ -38,12 +51,18 @@ function route(url: string, init?: any): any {
 afterEach(() => { cleanup(); sessionStorage.clear(); });
 beforeEach(() => {
   calls.length = 0;
+  posted.length = 0;
+  dxDeferred = true;
+  hasDx21 = true;
+  blind21 = { imageId: 21, round: 1, gradable: true, grade: 0, createdAt: "2026-09-20T01:02:00Z" };
   sessionStorage.setItem("diacompanion.token", "t");
   (globalThis as any).fetch = vi.fn(async (url: string, init: any) => {
     const u = String(url);
-    if (u.includes("/content") || u.includes("dataset.csv"))
+    if (u.includes("/content") || u.includes(".csv"))
       return new Response(new Blob(["a,b\n1,2\n"], { type: "text/csv" }), { status: 200 });
-    return new Response(JSON.stringify(route(u, init)), { status: 200, headers: { "Content-Type": "application/json" } });
+    const body = route(u, init);
+    if (body === undefined) return new Response(null, { status: 204 });
+    return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
   });
   (URL as any).createObjectURL = () => "blob:x";
   (URL as any).revokeObjectURL = () => {};
@@ -61,36 +80,103 @@ describe("Lite — bác sĩ (Doctor + Receptionist)", () => {
     await screen.findByText("BN001");
     expect(calls.some((c) => c.includes("/api/engagement") || c.includes("/api/triage"))).toBe(false);
   });
-  it("tab Lượt hiện tại: chỉ số, hai mắt, tóm tắt AI, đóng lượt", async () => {
+  it("có lượt mở → mặc định tab Lượt hiện tại: tiến độ, chỉ số, hai mắt, đóng lượt bị khóa", async () => {
     app("/cases/7");
-    await screen.findByText(/1\. Chỉ số lâm sàng/);
-    await screen.findByText(/Mắt phải/); await screen.findByText(/Mắt trái/);
-    await screen.findByText("Nạp ảnh OS");
-    await screen.findByText("Bất đồng cao");
-    await screen.findByText("3. Đóng lượt");
+    await screen.findByText("Chỉ số lâm sàng");
+    await screen.findByText("Tiến độ lượt");
+    await screen.findByText(/Kéo thả ảnh OS/);
+    await screen.findByText(/Cần xem kỹ: Bất đồng cao/);
+    await screen.findByText("Xem kỹ để xác nhận →");
+    expect(screen.queryByText(/Đồng ý:/)).toBeNull(); // ca cần xem kỹ không xác nhận nhanh
+    const close = (await screen.findAllByText("Đóng lượt")).find((el) => el.tagName === "BUTTON") as HTMLButtonElement;
+    expect(close.disabled).toBe(true);
+    await screen.findByText(/Mắt phải \(OD\): cần xem kỹ để xác nhận/);
   });
-  it("tab Kết quả đã xác nhận chỉ liệt kê kết quả đã duyệt", async () => {
+  it("ca thường quy: xác nhận ngay trên thẻ gọi approve", async () => {
+    dxDeferred = false;
     app("/cases/7");
-    fireEvent.click(await screen.findByRole("tab", { name: "Kết quả đã xác nhận" }));
-    await screen.findByText("Phê duyệt");
-    expect(screen.queryByText("Bất đồng cao")).toBeNull(); // ca chưa xác nhận không có ở đây
+    fireEvent.click(await screen.findByText(/Đồng ý: Không có DR/));
+    await waitFor(() => expect(calls).toContain("POST /api/triage/31/approve"));
   });
-  it("tab Diễn tiến gọi API progression", async () => {
+  it("tab Hồ sơ bệnh án: hành chính, tóm tắt, các lần khám AI → BS", async () => {
     app("/cases/7");
-    fireEvent.click(await screen.findByRole("tab", { name: "Diễn tiến" }));
-    await screen.findByText("Bảng số liệu đã xác nhận");
-    await waitFor(() => expect(calls.some((c) => c.startsWith("GET /api/diagnoses/progression/7"))).toBe(true));
+    fireEvent.click(await screen.findByRole("tab", { name: "Hồ sơ bệnh án" }));
+    await screen.findByText("Hồ sơ bệnh án — BN001");
+    await screen.findByText("I. Hành chính");
+    await screen.findByText(/8\.4% \(/);          // HbA1c gần nhất từ lượt mới
+    await screen.findByText(/150\/90 mmHg/);       // HA gần nhất từ lượt cũ
+    await screen.findByText("V. Các lần khám (2)");
+    expect(screen.queryByText(/Kết luận:/)).toBeNull(); // lượt cũ đang thu gọn
+    fireEvent.click(document.querySelector(".lite-visit-h[aria-expanded=\"false\"]")!); // mở lượt cũ
+    expect((await screen.findAllByText("DR trung bình")).length).toBe(2); // chấm mù + quyết định lâm sàng
+    await screen.findByText(/Phê duyệt/);
+    await screen.findByText(/Kết luận:/);
+    expect(calls.some((c) => c.includes("/api/diagnoses/progression"))).toBe(false);
   });
-  it("tab Chỉ số theo thời gian gom HbA1c/HA theo lượt", async () => {
+  it("ảnh chưa chấm mù: phải chấm trước, lưu gọi round1 rồi mới chạy AI", async () => {
+    hasDx21 = false;
+    blind21 = undefined;
     app("/cases/7");
-    fireEvent.click(await screen.findByRole("tab", { name: "Chỉ số theo thời gian" }));
-    await screen.findByText("9.1");
-    await screen.findByText("150");
-    await screen.findByText("90");
+    // Không chấm ngay trên thẻ: phải mở màn xem ảnh (phóng to/kéo thả + thông tin lâm sàng).
+    expect(screen.queryByText(/phân độ của bác sĩ trước khi xem AI/)).toBeNull();
+    fireEvent.click(await screen.findByText(/Xem ảnh & chấm mù/));
+    await screen.findByText(/phân độ của bác sĩ trước khi xem AI/);
+    await screen.findByText("8.2 %");
+    await screen.findByText("150/90 mmHg");
+    await screen.findByText(/đã laser mắt trái/);
+    expect(screen.getAllByText("100%").length).toBeGreaterThan(0); // khung xem phóng to
+    const save = (await screen.findByText("Lưu phân độ & chạy AI")).closest("button") as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
+    fireEvent.click(screen.getAllByRole("radio")[1]); // DR nhẹ
+    expect(save.disabled).toBe(false);
+    fireEvent.click(save);
+    await waitFor(() => expect(calls).toContain("POST /api/diagnoses/run/21"));
+    const i = calls.indexOf("POST /api/grading/round1/21");
+    expect(i).toBeGreaterThan(-1);
+    expect(i).toBeLessThan(calls.indexOf("POST /api/diagnoses/run/21"));
+    expect(posted.find((p) => p.path === "/api/grading/round1/21")!.body).toMatchObject({ gradable: true, grade: 1 });
+  });
+  it("tạo hồ sơ ẩn danh: mã nghiên cứu, năm sinh, SĐT giả 00…", async () => {
+    app("/cases/new");
+    const inputs = await screen.findAllByRole("textbox");
+    fireEvent.change(inputs[0], { target: { value: "NC-0012" } });
+    fireEvent.change(document.querySelector('input[type="number"]')!, { target: { value: "1968" } });
+    fireEvent.click(screen.getByText("Tạo hồ sơ"));
+    await waitFor(() => expect(posted.some((p) => p.path === "/api/patients")).toBe(true));
+    const body = posted.find((p) => p.path === "/api/patients")!.body;
+    expect(body.fullName).toBe("NC-0012");
+    expect(body.dateOfBirth).toBe("1968-07-01");
+    expect(body.phone).toMatch(/^00\d{9}$/);
+    expect(screen.queryByText("Số điện thoại")).toBeNull();
   });
   it("bác sĩ KHÔNG vào được /export", async () => {
     app("/export");
     await screen.findByText(/Cần vai trò Nghiên cứu/);
+  });
+});
+
+describe("Lite — người chấm độc lập (Grader)", () => {
+  beforeEach(() => as(["Grader"]));
+
+  it("vào thẳng trang chấm, không thấy bệnh nhân/AI, lưu gọi vòng 2", async () => {
+    app("/khong-co");
+    await screen.findByText(/Ảnh 1 — còn 1 ảnh/);
+    // Từ 1.3.0: người chấm chỉ thấy ảnh, không tải và không hiện thông tin lâm sàng.
+    expect(screen.queryByText("Thông tin lâm sàng")).toBeNull();
+    expect(screen.queryByText("8.2 %")).toBeNull();
+    expect(screen.queryByText("Mã nghiên cứu")).toBeNull();
+    expect(calls.some((c) => c.includes("/context"))).toBe(false);
+    screen.getByText("Red-free");
+    expect(screen.queryByText("Thêm bệnh nhân")).toBeNull();
+    expect(calls.some((c) => c.includes("/api/diagnoses") || c.includes("/api/patients"))).toBe(false);
+    fireEvent.click(screen.getAllByRole("radio")[3]); // DR nặng
+    fireEvent.click(screen.getByText("Lưu & sang ảnh tiếp"));
+    await waitFor(() => expect(posted.some((p) => p.path === "/api/grading/round/2/21")).toBe(true));
+    expect(posted.find((p) => p.path === "/api/grading/round/2/21")!.body).toMatchObject({ gradable: true, grade: 3 });
+  });
+  it("không vào được khu lâm sàng", async () => {
+    app("/cases");
+    await screen.findByText(/Cần đồng thời hai vai trò/);
   });
 });
 
@@ -101,6 +187,15 @@ describe("Lite — nghiên cứu (Research)", () => {
     app("/cases");            // vào khu lâm sàng
     await screen.findByText(/Cần đồng thời hai vai trò/);
     expect(screen.queryByText("Thêm bệnh nhân")).toBeNull();
+  });
+  it("trang kết xuất có tiến độ chấm và tải bảng chấm mù", async () => {
+    app("/export");
+    await screen.findByText("bất đồng cần phân xử");
+    fireEvent.click(screen.getByText("Tải bảng chấm mù CSV"));
+    await waitFor(() => {
+      const urls = ((globalThis as any).fetch as any).mock.calls.map((c: any[]) => String(c[0]));
+      expect(urls.some((u: string) => u.includes("/api/research/grading.csv"))).toBe(true);
+    });
   });
   it("/ và route lạ chuyển về /export, tải CSV gọi đúng endpoint + khoảng ngày", async () => {
     app("/khong-co");
