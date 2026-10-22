@@ -104,7 +104,7 @@ const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     <div className="login">
       <div className="login-card">
         <div className="login-side">
-          <h1>DiaCompanion</h1>
+          <h1>DR AI-Diagnosis</h1>
           <p>
             Khôi phục mật khẩu bằng số điện thoại
             đã đăng ký.
@@ -280,7 +280,7 @@ const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     <div className="login">
       <div className="login-card">
         <div className="login-side">
-          <h1>DiaCompanion</h1>
+          <h1>DR AI-Diagnosis</h1>
           <p>Console lâm sàng hỗ trợ sàng lọc bệnh võng mạc đái tháo đường.</p>
           <div className="stack">
             <StatusBadge text="AI chỉ hỗ trợ quyết định" kind="defer" />

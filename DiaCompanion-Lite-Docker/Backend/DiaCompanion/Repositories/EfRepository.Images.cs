@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using DiaCompanion.Api.Common;
 using DiaCompanion.Api.Entities;
 
 namespace DiaCompanion.Api.Repositories;
@@ -39,4 +40,11 @@ public sealed partial class EfRepository
 
     public Task<bool> HasDiagnosisForImageAsync(int imageId, CancellationToken ct = default) =>
         _db.AiDiagnoses.AsNoTracking().AnyAsync(x => x.FundusImageId == imageId, ct);
+
+    // Query filter của FundusImage đã loại ảnh thu hồi.
+    public Task<FundusImage?> GetActiveImageForEyeAsync(int visitId, Eye eye, CancellationToken ct = default) =>
+        _db.FundusImages.AsNoTracking()
+            .Where(f => f.VisitId == visitId && f.Eye == eye)
+            .OrderByDescending(f => f.Id)
+            .FirstOrDefaultAsync(ct);
 }

@@ -2341,3 +2341,18 @@ input:disabled, select:disabled, textarea:disabled {
 .report-patient-next li {
   margin-bottom: 4px;
 }
+
+/* ---------------------------------------------------------------- thông tin lâm sàng cạnh ảnh */
+.clin-panel { margin-bottom: 12px; }
+.clin-ctx dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+}
+.clin-ctx dl > div { min-width: 0; }
+.clin-ctx dt { font-size: var(--fs-label); color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.clin-ctx dd { margin: 2px 0 0; font-family: var(--mono); font-size: var(--fs-td); overflow-wrap: anywhere; }
+.clin-ctx.compact dl { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+.clin-note { margin: 10px 0 0; font-size: var(--fs-td); }
+.clin-note span { color: var(--muted); }

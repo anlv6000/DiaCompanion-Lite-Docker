@@ -23,3 +23,7 @@ DiaCompanion-hospital-demo
 ai_service/KetQuaChoModel2,Deferal
 ai_service/models/*/outputs
 Backend/DiaCompanion.Tests
+test-run
+release
+installer/build
+installer/payload

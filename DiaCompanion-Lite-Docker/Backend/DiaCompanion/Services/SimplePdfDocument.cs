@@ -47,7 +47,7 @@ internal static class SimplePdfDocument
         objects[fontObjectId] = Ascii("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
 
         using var output = new MemoryStream();
-        Write(output, "%PDF-1.4\n%DiaCompanion\n");
+        Write(output, "%PDF-1.4\n%DR AI-Diagnosis\n");
         var offsets = new long[fontObjectId + 1];
 
         for (var id = 1; id <= fontObjectId; id++)

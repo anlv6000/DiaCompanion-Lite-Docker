@@ -20,7 +20,7 @@ FROM build AS schema
 ENV PATH="${PATH}:/root/.dotnet/tools"
 RUN dotnet tool install --global dotnet-ef --version 8.0.8
 # Chỉ để khởi tạo host lúc sinh script; KHÔNG kết nối CSDL.
-ENV ConnectionStrings__Default="Server=localhost;Database=DiaCompanion;User Id=sa;Password=x;TrustServerCertificate=True" \
+ENV ConnectionStrings__Default="Server=localhost;Database=DRAIDiagnosis;User Id=sa;Password=x;TrustServerCertificate=True" \
     Jwt__SigningKey="design-time-only-design-time-only-design-time-only" \
     Jwt__Issuer="design" Jwt__Audience="design" \
     ASPNETCORE_ENVIRONMENT=Development DOTNET_CLI_TELEMETRY_OPTOUT=1
@@ -41,6 +41,7 @@ RUN apt-get update \
 WORKDIR /init
 COPY --from=schema /schema.sql /init/schema.sql
 COPY Lite/seed_lite.py Lite/export_dataset.sql /init/
+COPY Lite/migrations/ /init/migrations/
 COPY docker/backend/dbinit.sh /init/dbinit.sh
 RUN sed -i 's/\r$//' /init/dbinit.sh && chmod +x /init/dbinit.sh
 ENTRYPOINT ["/init/dbinit.sh"]
@@ -58,4 +59,4 @@ ENV ASPNETCORE_URLS=http://+:8080 \
     ASPNETCORE_ENVIRONMENT=Production \
     DOTNET_gcServer=0
 EXPOSE 8080
-ENTRYPOINT ["dotnet", "DiaCompanion.dll"]
+ENTRYPOINT ["dotnet", "DRAIDiagnosis.dll"]

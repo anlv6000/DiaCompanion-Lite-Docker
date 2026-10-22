@@ -48,6 +48,30 @@ public sealed partial class EfRepository : IRepository
         }
     }
 
+    public async Task<bool> TryCommitUniqueAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateException ex) when (IsUniqueViolation(ex))
+        {
+            // Bỏ các entity vừa Add để lần lưu sau trong cùng request không lặp lại lỗi.
+            foreach (var e in _db.ChangeTracker.Entries().Where(e => e.State == EntityState.Added).ToList())
+                e.State = EntityState.Detached;
+            return false;
+        }
+    }
+
+    private static bool IsUniqueViolation(DbUpdateException ex)
+    {
+        for (Exception? e = ex; e is not null; e = e.InnerException)
+            if (e is Microsoft.Data.SqlClient.SqlException sql && (sql.Number == 2601 || sql.Number == 2627))
+                return true;
+        return false;
+    }
+
     public Task<bool> CanConnectAsync(CancellationToken cancellationToken = default) =>
         _db.Database.CanConnectAsync(cancellationToken);
 
@@ -57,18 +81,38 @@ public sealed partial class EfRepository : IRepository
         CancellationToken cancellationToken = default)
     {
         var strategy = _db.Database.CreateExecutionStrategy();
+        // 1.3.1: execution strategy (EnableRetryOnFailure) chạy LẠI cả khối khi gặp lỗi tạm thời, điển hình là
+        // deadlock (1205) khi hai mắt chạy AI xong cùng lúc với mức cô lập Serializable. Trước đây entity do lần
+        // thử hỏng tạo ra vẫn nằm trong ChangeTracker (trạng thái Added) nên lần thử lại ghi THÊM chúng: một ảnh
+        // có hai kết quả AI còn hiệu lực, kết quả cũ bị ẩn và chặn đóng lượt ("Còn 1/3 kết quả AI chưa ...").
+        // Nay: mọi entity được theo dõi TRONG lần thử (thêm mới hoặc đọc ra) bị gỡ khỏi ChangeTracker khi lần
+        // thử thất bại; lần thử sau đọc/tạo lại từ đầu. Entity theo dõi từ trước khi vào khối giữ nguyên.
+        var attempt = new List<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry>();
+        void OnTracked(object? sender, Microsoft.EntityFrameworkCore.ChangeTracking.EntityTrackedEventArgs e) => attempt.Add(e.Entry);
+
         await strategy.ExecuteAsync(async () =>
         {
-            await using var tx = await _db.Database.BeginTransactionAsync(isolationLevel, cancellationToken);
+            attempt.Clear();
+            _db.ChangeTracker.Tracked += OnTracked;
             try
             {
-                await action();
-                await tx.CommitAsync(cancellationToken);
+                await using var tx = await _db.Database.BeginTransactionAsync(isolationLevel, cancellationToken);
+                try
+                {
+                    await action();
+                    await tx.CommitAsync(cancellationToken);
+                }
+                catch
+                {
+                    try { await tx.RollbackAsync(cancellationToken); } catch { /* giao dịch đã bị SQL Server hủy (deadlock) */ }
+                    foreach (var entry in attempt)
+                        if (entry.State != EntityState.Detached) entry.State = EntityState.Detached;
+                    throw;
+                }
             }
-            catch
+            finally
             {
-                await tx.RollbackAsync(cancellationToken);
-                throw;
+                _db.ChangeTracker.Tracked -= OnTracked;
             }
         });
     }

@@ -15,7 +15,8 @@ import {
 } from "@/components/ui";
 import { diabetesTypes, genders, label } from "@/lib/enums";
 import { fmtDate } from "@/lib/format";
-import type { CreatePatientRequest } from "@/types/api";
+import { isConflict } from "@/api/client";
+import { birthYearToDob, placeholderPhone } from "@/lite/liteData";
 
 /* ------------------------------------------------------------------ danh sách */
 export function LitePatientsPage() {
@@ -53,7 +54,7 @@ export function LitePatientsPage() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Tìm theo mã, họ tên hoặc số điện thoại (từ 2 ký tự)"
+            placeholder="Tìm theo mã BN hoặc mã nghiên cứu (từ 2 ký tự)"
             aria-label="Tìm bệnh nhân"
           />
         </div>
@@ -65,7 +66,7 @@ export function LitePatientsPage() {
           emptyText="Chưa có bệnh nhân. Bấm “Thêm bệnh nhân” để tạo hồ sơ đầu tiên."
         >
           <DataTable
-            headers={["Mã", "Họ tên", "Tuổi", "Giới", "Loại ĐTĐ", "Số năm mắc", "DR đã xác nhận", "Lần khám gần nhất", ""]}
+            headers={["Mã BN", "Mã nghiên cứu", "Tuổi", "Giới", "Loại ĐTĐ", "Số năm mắc", "DR đã xác nhận", "Lần khám gần nhất", ""]}
           >
             {list.data?.items.map((p) => (
               <tr key={p.id}>
@@ -104,14 +105,25 @@ export function LitePatientsPage() {
 }
 
 /* ------------------------------------------------------------------ tạo / sửa */
-type Form = Omit<CreatePatientRequest, "createAccount" | "existingUserId">;
+/* Bản nghiên cứu: hồ sơ ẩn danh. Không nhập họ tên, SĐT, địa chỉ.
+   - "Mã nghiên cứu" (do bệnh viện cấp, đối chiếu với danh tính ở bảng mã giữ NGOÀI hệ thống)
+     được lưu vào trường họ tên.
+   - Chỉ nhập năm sinh; ngày sinh quy ước 01/07 năm đó.
+   - SĐT là số giả bắt đầu "00" (backend yêu cầu SĐT duy nhất). */
+interface Form {
+  researchCode: string;
+  birthYear: string;
+  gender: number;
+  diabetesType: number;
+  diabetesDurationYears: number | null;
+  baselineHbA1c: number | null;
+  note: string;
+}
 
 const EMPTY: Form = {
-  fullName: "",
+  researchCode: "",
+  birthYear: "",
   gender: 0,
-  dateOfBirth: "",
-  phone: "",
-  address: "",
   diabetesType: 2,
   diabetesDurationYears: null,
   baselineHbA1c: null,
@@ -119,6 +131,7 @@ const EMPTY: Form = {
 };
 
 const num = (v: string): number | null => (v === "" ? null : Number(v));
+const thisYear = new Date().getFullYear();
 
 export function LitePatientFormPage({ id }: { id?: number }) {
   const data = useData();
@@ -136,11 +149,9 @@ export function LitePatientFormPage({ id }: { id?: number }) {
     const d = detail.data;
     if (!d) return;
     setForm({
-      fullName: d.fullName,
+      researchCode: d.fullName,
+      birthYear: (d.dateOfBirth || "").slice(0, 4),
       gender: d.gender,
-      dateOfBirth: (d.dateOfBirth || "").slice(0, 10),
-      phone: d.phone,
-      address: d.address ?? "",
       diabetesType: d.diabetesType,
       diabetesDurationYears: d.diabetesDurationYears ?? null,
       baselineHbA1c: d.baselineHbA1c ?? null,
@@ -151,29 +162,43 @@ export function LitePatientFormPage({ id }: { id?: number }) {
   async function save(e: FormEvent) {
     e.preventDefault();
     setError("");
-    if (!form.fullName.trim()) return setError("Vui lòng nhập họ tên.");
-    if (!form.dateOfBirth) return setError("Vui lòng chọn ngày sinh.");
-    if (!/^\d{10,11}$/.test(form.phone.trim())) return setError("Số điện thoại phải gồm 10 đến 11 chữ số.");
+    const code = form.researchCode.trim();
+    const year = Number(form.birthYear);
+    if (!code) return setError("Nhập mã nghiên cứu.");
+    if (!Number.isInteger(year) || year < thisYear - 110 || year > thisYear) return setError("Năm sinh không hợp lệ.");
+    const common = {
+      fullName: code,
+      gender: form.gender,
+      dateOfBirth: birthYearToDob(year),
+      address: null,
+      diabetesType: form.diabetesType,
+      diabetesDurationYears: form.diabetesDurationYears,
+      baselineHbA1c: form.baselineHbA1c,
+      note: form.note.trim() || null,
+    };
     setBusy(true);
     try {
-      const body = {
-        ...form,
-        fullName: form.fullName.trim(),
-        phone: form.phone.trim(),
-        address: form.address?.trim() || null,
-        note: form.note?.trim() || null,
-      };
       if (edit) {
         const d = detail.data;
         if (!d) throw new Error("Chưa tải xong hồ sơ.");
-        await data.patients.update(id!, { ...body, rowVersion: d.rowVersion });
+        await data.patients.update(id!, { ...common, phone: d.phone, rowVersion: d.rowVersion });
         toast.push("Đã cập nhật hồ sơ.", "success");
         navigate(`/cases/${id}`);
       } else {
-        // Bản thu thập dữ liệu KHÔNG cấp tài khoản đăng nhập cho bệnh nhân.
-        const res = await data.patients.create({ ...body, createAccount: false, existingUserId: null });
-        toast.push("Đã tạo hồ sơ bệnh nhân.", "success");
-        navigate(`/cases/${res.patient.id}`);
+        // SĐT giả có thể trùng (rất hiếm): thử lại vài lần với số khác.
+        let lastErr: unknown;
+        for (let i = 0; i < 3; i++) {
+          try {
+            const res = await data.patients.create({ ...common, phone: placeholderPhone(), createAccount: false, existingUserId: null });
+            toast.push("Đã tạo hồ sơ bệnh nhân.", "success");
+            navigate(`/cases/${res.patient.id}`);
+            return;
+          } catch (err) {
+            lastErr = err;
+            if (!isConflict(err)) break;
+          }
+        }
+        throw lastErr;
       }
     } catch (err) {
       setError((err as Error).message);
@@ -190,13 +215,16 @@ export function LitePatientFormPage({ id }: { id?: number }) {
     <>
       <PageHeader
         title={edit ? "Cập nhật hồ sơ bệnh nhân" : "Thêm bệnh nhân"}
-        subtitle="Các trường lâm sàng (loại ĐTĐ, số năm mắc, HbA1c nền) được dùng để tính điểm nguy cơ của AI."
+        subtitle="Hồ sơ ẩn danh: không nhập họ tên, số điện thoại, địa chỉ. Bảng đối chiếu mã nghiên cứu với danh tính do bệnh viện giữ ngoài hệ thống."
       />
       <Panel>
         <form onSubmit={save}>
           <div className="form-row three">
-            <Field labelText="Họ tên" required>
-              <input value={form.fullName} maxLength={70} onChange={(e) => patch("fullName", e.target.value)} />
+            <Field labelText="Mã nghiên cứu" required help="Mã ghi trên phiếu đồng ý tham gia, ví dụ NC-0012.">
+              <input value={form.researchCode} maxLength={70} autoFocus={!edit} onChange={(e) => patch("researchCode", e.target.value)} />
+            </Field>
+            <Field labelText="Năm sinh" required>
+              <input type="number" inputMode="numeric" min={thisYear - 110} max={thisYear} value={form.birthYear} onChange={(e) => patch("birthYear", e.target.value)} />
             </Field>
             <Field labelText="Giới tính" required>
               <select value={form.gender} onChange={(e) => patch("gender", Number(e.target.value))}>
@@ -204,15 +232,6 @@ export function LitePatientFormPage({ id }: { id?: number }) {
                   <option key={i} value={i}>{g}</option>
                 ))}
               </select>
-            </Field>
-            <Field labelText="Ngày sinh" required>
-              <input type="date" value={form.dateOfBirth} onChange={(e) => patch("dateOfBirth", e.target.value)} />
-            </Field>
-            <Field labelText="Số điện thoại" required help="10–11 chữ số.">
-              <input inputMode="numeric" value={form.phone} maxLength={11} onChange={(e) => patch("phone", e.target.value.replace(/\D/g, ""))} />
-            </Field>
-            <Field labelText="Địa chỉ">
-              <input value={form.address ?? ""} maxLength={300} onChange={(e) => patch("address", e.target.value)} />
             </Field>
             <Field labelText="Loại đái tháo đường" required help="Type 1 và Type 2 dùng luật nguy cơ khác nhau.">
               <select value={form.diabetesType} onChange={(e) => patch("diabetesType", Number(e.target.value))}>
@@ -227,8 +246,8 @@ export function LitePatientFormPage({ id }: { id?: number }) {
             <Field labelText="HbA1c nền (%)">
               <input type="number" step="0.1" min="3" max="20" value={form.baselineHbA1c ?? ""} onChange={(e) => patch("baselineHbA1c", num(e.target.value))} />
             </Field>
-            <Field labelText="Ghi chú">
-              <textarea value={form.note ?? ""} maxLength={1000} onChange={(e) => patch("note", e.target.value)} />
+            <Field labelText="Ghi chú" help="Không ghi thông tin định danh.">
+              <textarea value={form.note} maxLength={1000} onChange={(e) => patch("note", e.target.value)} />
             </Field>
           </div>
           {error && <div className="state error" style={{ marginTop: 12 }}>{error}</div>}

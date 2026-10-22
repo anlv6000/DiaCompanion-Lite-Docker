@@ -1,0 +1,304 @@
+/* Kiểu riêng của bản Lite (trang ca khám + hồ sơ bệnh án).
+   Theo FE_DESIGN_RULES "clinical dense": viền mảnh, bo 4–6px, không bóng/gradient. */
+
+/* ---------------------------------------------------------------- tiến độ lượt */
+.lite-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 18px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+}
+.lite-steps b {
+  font-size: var(--fs-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.lite-step {
+  font-size: var(--fs-td);
+  color: var(--muted);
+}
+.lite-step.ok { color: var(--ok); }
+.lite-step.watch { color: var(--watch); }
+.lite-step.alert { color: var(--alert); }
+.lite-step.defer { color: var(--defer); }
+
+/* ---------------------------------------------------------------- chỉ số */
+.lite-save { font-size: var(--fs-cap); color: var(--muted); font-weight: 400; }
+.lite-save.ok { color: var(--ok); }
+.lite-save.watch { color: var(--watch); }
+.lite-save.alert { color: var(--alert); }
+.field.warn input { border-color: var(--watch); }
+.field.warn .help { color: var(--watch); }
+
+/* ---------------------------------------------------------------- thẻ mắt */
+.lite-eye .panel-b { min-width: 0; }
+.lite-drop {
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 16px;
+  text-align: center;
+  color: var(--muted);
+  border: 1px dashed var(--hairline);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.lite-drop:hover,
+.lite-drop:focus-visible,
+.lite-drop.over {
+  border-color: var(--primary);
+  color: var(--primary);
+  outline: none;
+}
+.lite-eye-img {
+  display: block;
+  width: 100%;
+  max-height: 280px;
+  object-fit: contain;
+  background: var(--fundus);
+  border-radius: 4px;
+  cursor: zoom-in;
+}
+.lite-fname {
+  margin-top: 4px;
+  font-size: var(--fs-cap);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.lite-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.lite-note {
+  margin-top: 10px;
+  padding: 8px 10px;
+  font-size: var(--fs-td);
+  border-radius: 4px;
+  background: var(--row);
+  border: 1px solid var(--hairline);
+  overflow-wrap: anywhere;
+}
+.lite-note.ok { color: var(--ok); }
+.lite-note.watch { color: var(--watch); }
+.lite-note.error { color: var(--alert); }
+.lite-note.defer { color: var(--defer); background: var(--defer-bg); border-color: transparent; }
+.lite-override { margin-top: 10px; }
+.lite-linkbtn,
+.lite-linkbtn:hover:not(:disabled) {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--primary);
+  font-size: var(--fs-td);
+  text-decoration: underline;
+}
+.lite-blockers {
+  margin: 12px 0;
+  padding-left: 18px;
+  font-size: var(--fs-td);
+  color: var(--watch);
+}
+
+/* ---------------------------------------------------------------- hồ sơ bệnh án */
+.lite-rec-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.lite-rec-head h2 { margin: 0; font-size: 20px; }
+.lite-rec-head .lite-actions { margin-top: 0; }
+.lite-kv {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px 20px;
+}
+.lite-kv > div { min-width: 0; overflow-wrap: anywhere; }
+.lite-kv > div.wide { grid-column: 1 / -1; }
+.lite-kv > div > span {
+  display: block;
+  font-size: var(--fs-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.lite-overdue { color: var(--alert); font-weight: 600; }
+.lite-charts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.lite-chart { min-width: 0; }
+.lite-chart h4 {
+  margin: 0 0 6px;
+  font-size: var(--fs-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.lite-visit {
+  margin-bottom: 8px;
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+}
+.lite-visit-h,
+.lite-visit-h:hover:not(:disabled) {
+  width: 100%;
+  min-height: var(--h-lg);
+  padding: 8px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 6px 16px;
+  border: 0;
+  background: none;
+  text-align: left;
+}
+.lite-visit-grades { margin-left: auto; font-size: var(--fs-td); }
+.lite-visit-b { padding: 4px 12px 12px; border-top: 1px solid var(--hairline); }
+.lite-line { margin-top: 8px; font-size: var(--fs-td); overflow-wrap: anywhere; }
+.lite-eye-row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hairline);
+  font-size: var(--fs-td);
+}
+.lite-thumb {
+  width: 96px;
+  height: 72px;
+  object-fit: cover;
+  background: var(--fundus);
+  border-radius: 4px;
+  cursor: zoom-in;
+}
+.lite-diff { color: var(--watch); }
+.lite-print-only { display: none; }
+
+@media (max-width: 1179px) {
+  .lite-charts { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 699px) {
+  .lite-eye-row { grid-template-columns: 72px minmax(0, 1fr); }
+  .lite-thumb { width: 72px; height: 54px; }
+  .lite-visit-grades { margin-left: 0; }
+}
+@media print {
+  .lite-print-only { display: block; }
+  .lite-visit-h,
+  .lite-eye-row { break-inside: avoid; }
+  .lite-charts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* ---------------------------------------------------------------- chấm mù */
+.lite-blind {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  background: var(--row);
+}
+.lite-blind-h { font-size: var(--fs-td); }
+.lite-grade-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+.lite-grade-btn {
+  font-size: var(--fs-td);
+}
+.lite-grade-btn.on {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+.lite-grade-btn.warn.on {
+  border-color: var(--alert);
+  background: var(--alert);
+}
+.lite-blind-note { width: 100%; }
+
+/* ---------------------------------------------------------------- xem ảnh & chấm mù (vòng 1/2/3) */
+.lite-eye-img.clickable { cursor: pointer; }
+.lite-review-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 16px;
+  align-items: start;
+}
+.lite-review-grid .lite-viewer {
+  aspect-ratio: auto;
+  height: min(78vh, 900px);
+  margin: 0;
+}
+.lite-review-side { display: grid; gap: 12px; }
+.lite-review-side .panel { margin: 0; }
+.lite-review-side .lite-grade-row { flex-direction: column; }
+.lite-review-side .lite-grade-btn { justify-content: flex-start; min-height: var(--h-lg); }
+.lite-review {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: var(--canvas);
+}
+.lite-review-h {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--surface);
+}
+.lite-review-h .faint { font-size: var(--fs-cap); }
+.lite-review-h .close { margin-left: auto; font-size: 24px; line-height: 1; }
+.lite-review-b { flex: 1; overflow: auto; padding: 16px; }
+.lite-review-b .lite-viewer { height: calc(100vh - 96px); }
+@media (max-width: 1179px) {
+  .lite-review-grid { grid-template-columns: minmax(0, 1fr); }
+  .lite-review-grid .lite-viewer,
+  .lite-review-b .lite-viewer { height: min(82vw, 620px); }
+  .lite-review-h .faint { display: none; }
+}
+.lite-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.lite-kpis > div {
+  padding: 10px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+}
+.lite-kpis b { display: block; font-family: var(--mono); font-size: 20px; }
+.lite-kpis span { font-size: var(--fs-cap); color: var(--muted); }
+
+/* 1.3.1: kết quả nhập gói chấm */
+.lite-import { display: grid; gap: 8px; margin-top: 10px; min-width: 0; }

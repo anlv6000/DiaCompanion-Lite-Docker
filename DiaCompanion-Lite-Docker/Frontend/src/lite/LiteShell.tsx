@@ -11,7 +11,12 @@ const CLINICAL_NAV = [
   { to: "/cases/new", label: "Thêm bệnh nhân", icon: "plus" },
   { to: "/cases", label: "Bệnh nhân & ca thu thập", icon: "users" },
 ];
-const RESEARCH_NAV = [{ to: "/export", label: "Kết xuất dữ liệu", icon: "download" }];
+const RESEARCH_NAV = [
+  { to: "/export", label: "Kết xuất dữ liệu", icon: "download" },
+  // 1.3.1: gói chấm mù cho máy 2 (vòng 2) và máy 3 (phân xử), chấm offline.
+  { to: "/packages", label: "Chấm nhiều máy", icon: "file" },
+];
+const GRADER_NAV = [{ to: "/grading", label: "Chấm ảnh độc lập", icon: "eye" }];
 
 export function LiteShell({ children }: { children?: ReactNode }) {
   const { user, logout } = useAuth();
@@ -19,8 +24,13 @@ export function LiteShell({ children }: { children?: ReactNode }) {
   const [navOpen, setNavOpen] = useState(false);
   const clinical = hasRole(user, "Doctor") && hasRole(user, "Receptionist");
   const research = hasRole(user, "Research") || hasRole(user, "Admin");
-  // Bác sĩ chỉ thấy khu lâm sàng; Research chỉ thấy kết xuất.
-  const NAV = [...(clinical ? CLINICAL_NAV : []), ...(research && !clinical ? RESEARCH_NAV : [])];
+  const grader = hasRole(user, "Grader");
+  // Bác sĩ chỉ thấy khu lâm sàng; Research chỉ thấy kết xuất; Grader chỉ thấy trang chấm.
+  const NAV = [
+    ...(clinical ? CLINICAL_NAV : []),
+    ...(grader && !clinical ? GRADER_NAV : []),
+    ...(research && !clinical ? RESEARCH_NAV : []),
+  ];
 
   // "/cases" chỉ sáng khi không phải "/cases/new".
   const isOn = (to: string) =>
@@ -34,7 +44,7 @@ export function LiteShell({ children }: { children?: ReactNode }) {
         <div className="nav-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />
       )}
       <aside className="side" onClick={() => setNavOpen(false)}>
-        <div className="logo">DiaCompanion</div>
+        <div className="logo">DR AI-Diagnosis</div>
         <nav>
           <div className="nav-group">Thu thập dữ liệu</div>
           {NAV.map((x) => (

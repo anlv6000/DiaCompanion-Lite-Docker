@@ -60,6 +60,12 @@ public class DiagnosesService : BaseService, IDiagnosesService
             throw AppException.BadRequest(Msg.ImageNotGradable,
                 "Ảnh chưa đạt chất lượng nên không thể chạy phân tích AI.");
 
+        // Nghiên cứu: bác sĩ phải chấm mù (vòng 1) TRƯỚC khi AI chạy, để nhãn tham chiếu
+        // không bị kết quả AI dẫn dắt.
+        if (await _repository.GetBlindGradeAsync(imageId, 1, ct) is null)
+            throw AppException.BadRequest(Msg.RequiredFields,
+                "Cần chấm mù phân độ DR cho ảnh này trước khi chạy AI.");
+
         var alreadyApproved = await _repository.IsImageReviewedAsync(imageId, ct);
         if (alreadyApproved)
             throw AppException.Conflict(

@@ -1,0 +1,37 @@
+# Môi trường KIỂM THỬ tách riêng (project "dr-ai-diagnosis-test"), dùng chung image với bản dev.
+# Không chạy trực tiếp tệp này: dùng docker/test/run-tests.ps1 (Windows) hoặc run-tests.sh.
+#   - Volume DB và ảnh riêng của project test (xóa bằng: down -v).
+#   - Cổng web lấy từ WEB_PORT trong docker/test/.test.env (mặc định 8090).
+#   - Mật khẩu tạm và tệp kết xuất ghi vào ./test-run/, KHÔNG đụng ./secrets và ./exports của bản dev.
+services:
+  dbinit:
+    volumes:
+      - ./test-run/secrets:/secrets
+      - ./test-run/exports:/exports
+
+  tester:
+    build:
+      context: .
+      dockerfile: docker/test/Dockerfile
+    profiles: ["test"]
+    restart: "no"
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      API_URL: http://backend:8080
+      WEB_URL: http://web
+      AI_URL: http://ai:8000
+      SECRETS_DIR: /work/secrets
+      OUT_DIR: /work/report
+      APP_VERSION: ${APP_VERSION:-1.3.1}
+      GIT_COMMIT: ${GIT_COMMIT:-}
+      TESTER_NAME: ${TESTER_NAME:-}
+      DOCTOR_EMAIL: ${LITE_ADMIN_EMAIL}
+      DOCTOR_NAME: ${LITE_ADMIN_NAME}
+      RESEARCH_EMAIL: ${LITE_RESEARCH_EMAIL}
+      AI_WAIT_SECONDS: ${AI_WAIT_SECONDS:-1200}
+      AI_TIMEOUT_SECONDS: ${AI_TIMEOUT_SECONDS:-900}
+      TZ: Asia/Ho_Chi_Minh
+    volumes:
+      - ./test-run:/work

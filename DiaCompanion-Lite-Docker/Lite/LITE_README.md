@@ -1,4 +1,6 @@
-# DiaCompanion — bản "Thu thập dữ liệu" (Lite)
+# DR AI-Diagnosis (trước đây DiaCompanion Lite): bản "Thu thập dữ liệu"
+
+Từ 1.3.1: tên database là `DRAIDiagnosis`, tên dịch vụ `DRAIDiagnosisAI` / `DRAIDiagnosisBackend`. Các hướng dẫn cài tay bên dưới viết cho bản cũ; với tên mới, thay `DiaCompanion` bằng `DRAIDiagnosis`.
 
 Bản rút gọn của hệ thống chính thức, chỉ giữ luồng thu thập dữ liệu nghiên cứu:
 
@@ -53,8 +55,8 @@ Cần: SQL Server (Express được), .NET 8 Hosting Bundle, Python 3.10 + `pip 
 ## Lấy số liệu (Gap 2)
 
 - **Web:** đăng nhập tài khoản Research → *Kết xuất dữ liệu* → chọn khoảng ngày (tùy chọn) → *Tải dataset CSV*. Endpoint `GET /api/research/dataset.csv` (chỉ `Research`/`Admin`), mỗi lần tải được ghi audit.
-- **Dòng lệnh:** `docker compose run --rm dbinit export` → `./exports/dataset.csv` (cùng 54 cột, sinh bằng SQL).
-- **Từ điển 54 cột:** `DATASET_COLUMNS.md`. Mỗi dòng = một lần chạy AI của một mắt (kể cả chưa xác nhận), gồm biến nguy cơ nền, disagreement, ngưỡng hiệu dụng, deferral, fractal, phiên bản model và phân độ tham chiếu của bác sĩ. Đã bỏ họ tên/SĐT/ngày sinh/địa chỉ.
+- **Dòng lệnh:** `docker compose run --rm dbinit export` → `./exports/dataset.csv` (cùng 59 cột, sinh bằng SQL).
+- **Từ điển 59 cột:** `DATASET_COLUMNS.md`. Mỗi dòng = một lần chạy AI của một mắt (kể cả chưa xác nhận), gồm biến nguy cơ nền, disagreement, ngưỡng hiệu dụng, deferral, fractal, phiên bản model và phân độ tham chiếu của bác sĩ. Đã bỏ họ tên/SĐT/ngày sinh/địa chỉ.
 
 ## Chưa được kiểm chứng — làm trước khi giao
 

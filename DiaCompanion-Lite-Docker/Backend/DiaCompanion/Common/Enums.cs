@@ -11,6 +11,9 @@ public enum VisitStatus : byte { InProgress = 0, Completed = 1 }
 public enum ReferralType : byte { None = 0, FollowUp = 1, Ophthalmology = 2, Urgent = 3 }
 public enum ReviewAction : byte { Approve = 0, Override = 1 }
 
+/// <summary>1.3.1: gói chấm mù cho máy khác: đang mở (chờ nhập kết quả), đã nhập đủ, đã hủy.</summary>
+public enum GradingPackageStatus : byte { Open = 0, Completed = 1, Cancelled = 2 }
+
 /// <summary>Loại mô hình AI. Mỗi loại có tối đa một phiên bản đang kích hoạt.</summary>
 public enum ModelType : byte
 {
@@ -80,6 +83,9 @@ public static class AuditAction
     public const string ModelActivate = "MODEL_ACTIVATE";
     public const string ModelDelete = "MODEL_DELETE";
     public const string Export = "EXPORT";
+    public const string GradingPackageCreate = "GRADING_PACKAGE_CREATE";
+    public const string GradingPackageImport = "GRADING_PACKAGE_IMPORT";
+    public const string GradingPackageCancel = "GRADING_PACKAGE_CANCEL";
 }
 
 public static class ConfigKeys

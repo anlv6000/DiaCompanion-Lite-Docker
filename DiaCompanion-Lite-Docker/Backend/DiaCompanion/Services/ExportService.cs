@@ -98,7 +98,7 @@ public class ExportService : BaseService, IExportService
 
         return Ok(new
         {
-            clinic = new { name = "DiaCompanion", subtitle = "Hệ thống hỗ trợ sàng lọc bệnh võng mạc đái tháo đường" },
+            clinic = new { name = "DR AI-Diagnosis", subtitle = "Hệ thống hỗ trợ sàng lọc bệnh võng mạc đái tháo đường" },
             patient = new
             {
                 visit.MedicalRecord.Patient!.Code,
@@ -231,7 +231,7 @@ public class ExportService : BaseService, IExportService
 
         var lines = new List<string>
         {
-            "DIACOMPANION - EXAMINATION REPORT",
+            "DR AI-DIAGNOSIS - EXAMINATION REPORT",
             "Diabetic Retinopathy Screening Support System",
             "",
             $"Report ID: VISIT-{visit.Id}",
@@ -497,7 +497,12 @@ public class ExportService : BaseService, IExportService
             "fractal_asymmetry", "fractal_tn", "lacunarity",
             "dr_model_version", "lesion_model_version", "fractal_model_version",
             "is_reviewed", "review_action", "doctor_grade", "grade_distance",
-            "override_reason", "reviewed_at", "reviewed_by_doctor"));
+            "override_reason", "reviewed_at", "reviewed_by_doctor",
+            // Bổ sung bản nghiên cứu: baseline "hoãn theo độ tin cậy" cho RQ2.
+            "ai_confidence",
+            // Bản 1.2.2: điểm hồi quy liên tục của model DR (ROC/AUC cho RQ1, baseline bất định cho RQ2),
+            // và mã băm ảnh để phát hiện ảnh nạp trùng.
+            "ai_raw_score", "ai_fold_scores", "ai_fold_sd", "image_sha256"));
 
         foreach (var d in rows)
         {
@@ -512,6 +517,7 @@ public class ExportService : BaseService, IExportService
                 ? YearsBetween(patient.DateOfBirth, visit.VisitDate)
                 : null;
             int? gradeDistance = review != null ? Math.Abs((int)review.FinalGrade - (int)d.DrGrade) : null;
+            var (rawScore, foldScores, foldSd) = ParseDrScores(d.GradeProbabilities);
 
             var cells = new object?[]
             {
@@ -556,7 +562,12 @@ public class ExportService : BaseService, IExportService
                 gradeDistance,
                 review?.Reason,
                 review == null ? null : _clock.ToLocal(review.CreatedAt)?.ToString("O"),
-                review?.Doctor?.FullName,
+                review == null ? null : $"D{review.DoctorId}",  // mã bác sĩ, không xuất tên
+                d.Confidence,
+                rawScore,
+                foldScores,
+                foldSd,
+                img?.FileSha256,
             };
             sb.AppendLine(string.Join(",", cells.Select(Csv)));
         }
@@ -568,7 +579,90 @@ public class ExportService : BaseService, IExportService
         // BOM để Excel mở đúng tiếng Việt.
         var bytes = Encoding.UTF8.GetPreamble()
             .Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
-        return File(bytes, "text/csv", $"diacompanion-dataset-{_clock.LocalNow:yyyyMMdd}.csv");
+        return File(bytes, "text/csv", $"dr-ai-diagnosis-dataset-{_clock.LocalNow:yyyyMMdd}.csv");
+    }
+
+    /// <summary>
+    /// Bảng chấm mù: MỖI DÒNG = một ảnh đáy mắt (kể cả ảnh không chấm được, không chạy AI).
+    /// Nối với dataset.csv qua image_id. Không có định danh bệnh nhân hay tên người chấm
+    /// (chỉ mã người chấm), để người phân tích không suy ra được ai chấm ảnh nào.
+    /// </summary>
+    public async Task<IActionResult> GradingCsv()
+    {
+        var rows = await _repository.GetGradingExportRowsAsync();
+        var sb = new StringBuilder();
+        sb.AppendLine(string.Join(",",
+            "image_id", "patient_code", "visit_id", "eye", "quality_status", "uploaded_at", "has_ai",
+            "r1_gradable", "r1_grade", "r1_grader", "r1_at",
+            "r2_gradable", "r2_grade", "r2_grader", "r2_at",
+            "r3_gradable", "r3_grade", "r3_grader", "r3_at",
+            "needs_adjudication", "reference_gradable", "reference_grade", "reference_referable",
+            // Bản 1.2.2: bất đồng vòng 1–2 (giữ nguyên sau khi phân xử) và mã băm ảnh.
+            "r1_r2_disagree", "image_sha256",
+            // Bản 1.3.1: nguồn phân độ vòng 2/3: "app" = chấm trong ứng dụng, "pkg:<mã gói>" = nhập từ gói chấm offline.
+            "r2_source", "r3_source"));
+
+        foreach (var r in rows)
+        {
+            BlindGrade? G(byte round) => r.Grades.FirstOrDefault(g => g.Round == round);
+            object?[] Round(BlindGrade? g) => g is null
+                ? new object?[] { null, null, null, null }
+                : new object?[] { g.Gradable ? 1 : 0, g.Grade is null ? null : (byte?)g.Grade.Value,
+                                  $"G{g.GraderId}", _clock.ToLocal(g.CreatedAt)?.ToString("O") };
+            string? Source(BlindGrade? g) => g is null ? null
+                : g.SourcePackageId is null ? "app" : $"pkg:{g.SourcePackage?.Code ?? g.SourcePackageId.ToString()}";
+            var r1 = G(1); var r2 = G(2);
+            var disagree = r1 is not null && r2 is not null && GradingService.Disagree(r1, r2);
+            var needs = disagree && G(3) is null;
+            var (refGradable, refGrade) = GradingService.Reference(r.Grades);
+
+            var cells = new List<object?>
+            {
+                r.ImageId, r.PatientCode, r.VisitId, r.Eye == Eye.Od ? "OD" : "OS",
+                (byte)r.QualityStatus, _clock.ToLocal(r.UploadedAt)?.ToString("O"), r.HasAi ? 1 : 0
+            };
+            cells.AddRange(Round(r1));
+            cells.AddRange(Round(r2));
+            cells.AddRange(Round(G(3)));
+            cells.Add(needs ? 1 : 0);
+            cells.Add(refGradable is null ? null : (refGradable.Value ? 1 : 0));
+            cells.Add(refGrade is null ? null : (byte?)refGrade.Value);
+            cells.Add(refGrade is null ? null : (GradingService.Referable(refGrade) ? 1 : 0));
+            cells.Add(r1 is null || r2 is null ? null : (disagree ? 1 : 0));
+            cells.Add(r.Sha256);
+            cells.Add(Source(r2));
+            cells.Add(Source(G(3)));
+            sb.AppendLine(string.Join(",", cells.Select(Csv)));
+        }
+
+        await _audit.LogAsync(AuditAction.Export, "GradingDataset", null,
+            detail: $"Kết xuất bảng chấm mù {rows.Count} ảnh");
+        await _repository.CommitAsync();
+
+        var bytes = Encoding.UTF8.GetPreamble()
+            .Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray();
+        return File(bytes, "text/csv", $"dr-ai-diagnosis-grading-{_clock.LocalNow:yyyyMMdd}.csv");
+    }
+
+    /// <summary>
+    /// AiDiagnoses.GradeProbabilities lưu JSON [điểm ensemble, fold1..foldN] (model DR là hồi quy).
+    /// Trả: điểm ensemble, các fold nối bằng ';', độ lệch chuẩn quần thể giữa các fold.
+    /// Lượt chạy trước bản 1.2.2 (null hoặc không phải mảng số) → cả ba để trống.
+    /// </summary>
+    internal static (decimal? Raw, string? Folds, decimal? Sd) ParseDrScores(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return (null, null, null);
+        decimal[]? values;
+        try { values = System.Text.Json.JsonSerializer.Deserialize<decimal[]>(json); }
+        catch (System.Text.Json.JsonException) { return (null, null, null); }
+        if (values is null || values.Length == 0) return (null, null, null);
+        var folds = values.Skip(1).ToArray();
+        if (folds.Length == 0) return (values[0], null, null);
+        var mean = folds.Average();
+        var sd = (decimal)Math.Sqrt((double)folds.Select(f => (f - mean) * (f - mean)).Average());
+        return (values[0],
+                string.Join(";", folds.Select(f => f.ToString(System.Globalization.CultureInfo.InvariantCulture))),
+                Math.Round(sd, 4));
     }
 
     /// <summary>Số năm tròn giữa ngày sinh và ngày khám (không âm).</summary>

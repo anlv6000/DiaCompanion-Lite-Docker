@@ -26,4 +26,8 @@ public class ResearchController : BaseApiController
     [HttpGet("dataset.csv")]
     public Task<IActionResult> Dataset([FromQuery] DateOnly? from, [FromQuery] DateOnly? to)
         => _export.ResearchDatasetCsv(from, to);
+
+    /// <summary>Bảng chấm mù (mỗi ảnh một dòng, vòng 1–3 và nhãn tham chiếu). Nối dataset.csv qua image_id.</summary>
+    [HttpGet("grading.csv")]
+    public Task<IActionResult> Grading() => _export.GradingCsv();
 }

@@ -144,14 +144,16 @@ def predict(image_path, weights_path=None):
     img_hflip = torch.flip(img_tensor, dims=[3])
     img_vflip = torch.flip(img_tensor, dims=[2])
 
-    raw_score = 0.0
+    # Điểm từng fold (trung bình TTA gốc/lật ngang/lật dọc). Độ phân tán giữa các fold
+    # là thước đo bất định dùng cho nghiên cứu (baseline RQ2, điểm liên tục cho ROC).
+    fold_scores = []
     with torch.no_grad():
         for model in ensemble_models:
             out_orig = model(img_tensor).item()
             out_hflip = model(img_hflip).item()
             out_vflip = model(img_vflip).item()
-            raw_score += (out_orig + out_hflip + out_vflip) / 3.0
-    raw_score /= len(ensemble_models)
+            fold_scores.append((out_orig + out_hflip + out_vflip) / 3.0)
+    raw_score = sum(fold_scores) / len(fold_scores)
 
     final_class = 0
     if raw_score >= THRESHOLDS[3]:
@@ -167,6 +169,7 @@ def predict(image_path, weights_path=None):
         "grade": f"R{final_class}",
         "gradeLabel": CLASS_LABELS[final_class],
         "rawScore": round(raw_score, 4),
+        "foldScores": [round(s, 4) for s in fold_scores],
         "modelsUsed": len(ensemble_models),
         # Trả về nguồn trọng số thật sự được nạp, để đối chiếu với phiên bản
         # đang active trong màn Model Governance.

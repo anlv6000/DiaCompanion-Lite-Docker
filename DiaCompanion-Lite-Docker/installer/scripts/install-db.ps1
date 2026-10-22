@@ -1,53 +1,55 @@
+﻿# Tạo DB, áp schema, seed tài khoản + 3 model. Làm tiếp được nếu lần cài trước dừng giữa chừng.
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][string]$SchemaPath,
-    [Parameter(Mandatory = $true)][string]$SeedScript,
-    [Parameter(Mandatory = $true)][string]$AiServiceDir,
-    [Parameter(Mandatory = $true)][string]$PythonPath,
+    [Parameter(Mandatory = $true)][string]$InstallRoot,
+    [Parameter(Mandatory = $true)][string]$DataRoot,
     [Parameter(Mandatory = $true)][string]$DbPassword,
     [string]$AdminEmail = 'bacsi@benhvien.local',
-    [string]$AdminName = 'Bac si',
+    [string]$AdminName = 'Bác sĩ',
     [string]$License = 'NCKH-001',
     [string]$ResearchEmail = ''
 )
+. (Join-Path $PSScriptRoot 'common.ps1')
 
-Set-StrictMode -Version Latest
-$ErrorActionPreference = 'Stop'
+$python = Join-Path $InstallRoot 'ai\python.exe'
+$credPath = Join-Path (Get-ConfigRoot $DataRoot) 'initial_credentials.txt'
+Wait-SqlReady $DbPassword
 
-function Find-SqlCmd {
-    $candidates = @(
-        (Get-Command sqlcmd.exe -ErrorAction SilentlyContinue).Source,
-        "$env:ProgramFiles\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\SQLCMD.EXE",
-        "$env:ProgramFiles\Microsoft SQL Server\160\Tools\Binn\SQLCMD.EXE",
-        "$env:ProgramFiles\Microsoft SQL Server\150\Tools\Binn\SQLCMD.EXE"
-    ) | Where-Object { $_ -and (Test-Path $_) }
-    if (-not $candidates) { throw 'sqlcmd.exe was not found. Install SQL Server Express tools with the package.' }
-    return $candidates[0]
+$master = Get-ConnectionString $DbPassword 'master'
+$db = Get-ConnectionString $DbPassword
+
+# Mỗi bước chỉ chạy khi chưa xong.
+if (-not (Get-SqlScalar $master "SELECT DB_ID(N'$($script:DbName)')")) {
+    Write-Host 'Tạo database...'
+    Invoke-Sql $master "CREATE DATABASE [$($script:DbName)];"
 }
 
-$sqlcmd = Find-SqlCmd
-$server = '.\SQLEXPRESS'
-$base = @('-S', $server, '-U', 'sa', '-P', $DbPassword, '-C', '-b')
-for ($attempt = 1; $attempt -le 60; $attempt++) {
-    & $sqlcmd @base '-Q' 'SELECT 1' *> $null
-    if ($LASTEXITCODE -eq 0) { break }
-    if ($attempt -eq 60) { throw 'SQL Server did not become ready within 5 minutes.' }
-    Start-Sleep -Seconds 5
+$tables = [int](Get-SqlScalar $db 'SELECT COUNT(*) FROM sys.tables WHERE is_ms_shipped = 0')
+if ($tables -eq 0) {
+    Write-Host 'Áp schema...'
+    Invoke-SqlFile $db (Join-Path $InstallRoot 'db\schema.sql')
+} elseif (-not (Get-SqlScalar $db "SELECT OBJECT_ID(N'dbo.Users', N'U')")) {
+    throw "Database $($script:DbName) có $tables bảng nhưng thiếu dbo.Users (schema áp dở). Xóa database này rồi chạy lại bộ cài."
+} else {
+    Write-Host 'Schema đã có, bỏ qua.'
 }
 
-& $sqlcmd @base '-Q' 'IF DB_ID(N''DiaCompanion'') IS NULL CREATE DATABASE [DiaCompanion];'
-if ($LASTEXITCODE -ne 0) { throw 'Could not create the DiaCompanion database.' }
-
-& $sqlcmd @base '-d' 'DiaCompanion' '-i' $SchemaPath
-if ($LASTEXITCODE -ne 0) { throw 'Could not apply the database schema.' }
-
-$seedOutput = Join-Path $env:TEMP 'diacompanion-lite-seed.sql'
-$credentialOutput = Join-Path (Split-Path $AiServiceDir -Parent) 'initial_credentials.txt'
-$seedArgs = @($SeedScript, 'init', '--email', $AdminEmail, '--full-name', $AdminName, '--license', $License, '--ai-service-dir', $AiServiceDir, '--out', $seedOutput, '--password-out', $credentialOutput)
-if ($ResearchEmail) { $seedArgs += @('--research-email', $ResearchEmail) }
-& $PythonPath @seedArgs
-if ($LASTEXITCODE -ne 0) { throw 'Could not generate the initial Lite seed.' }
-& $sqlcmd @base '-d' 'DiaCompanion' '-i' $seedOutput
-if ($LASTEXITCODE -ne 0) { throw 'Could not apply the Lite seed.' }
-Remove-Item $seedOutput -Force -ErrorAction SilentlyContinue
-Write-Host "Database initialized. Initial credentials: $credentialOutput"
+# Seed chạy trong một transaction nên hoặc có đủ, hoặc chưa có gì.
+if ([int](Get-SqlScalar $db 'SELECT COUNT(*) FROM dbo.Users WHERE Email = @e' @{ '@e' = $AdminEmail.Trim() }) -gt 0) {
+    Write-Host "Tài khoản $AdminEmail đã có, bỏ qua seed."
+    if (-not (Test-Path $credPath)) { Write-Warning 'Không còn tệp mật khẩu tạm: dùng Start Menu > Cấp lại mật khẩu sau khi cài xong.' }
+} else {
+    Write-Host 'Seed tài khoản và model...'
+    $seedSql = New-SecureTempFile '.sql' $DataRoot
+    $seedArgs = @((Join-Path $InstallRoot 'db\seed_lite.py'), 'init', '--email', $AdminEmail, '--full-name', $AdminName,
+        '--license', $License, '--ai-service-dir', (Join-Path $InstallRoot 'ai'), '--out', $seedSql, '--password-out', $credPath)
+    if ($ResearchEmail) { $seedArgs += @('--research-email', $ResearchEmail) }
+    $env:PYTHONIOENCODING = 'utf-8'
+    try {
+        # Bỏ stdout: seed_lite.py in mật khẩu tạm, không để lọt vào installer.log. Mật khẩu nằm trong $credPath.
+        & $python @seedArgs | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'seed_lite.py lỗi khi sinh dữ liệu khởi tạo.' }
+        Invoke-SqlFile $db $seedSql
+    } finally { Remove-FileQuiet $seedSql }
+}
+Write-Host "Database sẵn sàng. Mật khẩu tạm: $credPath"

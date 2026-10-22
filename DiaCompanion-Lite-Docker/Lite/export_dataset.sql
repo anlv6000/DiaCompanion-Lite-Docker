@@ -54,14 +54,23 @@ SELECT
     CAST(ABS(CAST(r.FinalGrade AS int) - CAST(d.DrGrade AS int)) AS varchar(3)) AS grade_distance,
     '"' + REPLACE(ISNULL(r.Reason, ''), '"', '""') + '"'                       AS override_reason,
     CONVERT(varchar(33), r.CreatedAt AT TIME ZONE 'UTC' AT TIME ZONE 'SE Asia Standard Time', 126) AS reviewed_at,
-    '"' + REPLACE(ISNULL(u.FullName, ''), '"', '""') + '"'                     AS reviewed_by_doctor
+    CASE WHEN r.Id IS NULL THEN NULL ELSE 'D' + CAST(r.DoctorId AS varchar(20)) END AS reviewed_by_doctor,
+    CAST(d.Confidence AS varchar(24))                                          AS ai_confidence,
+    -- GradeProbabilities = JSON [điểm ensemble, fold1..foldN] (bản 1.2.2; bản cũ: NULL).
+    CASE WHEN ISJSON(d.GradeProbabilities) = 1 THEN JSON_VALUE(d.GradeProbabilities, '$[0]') END AS ai_raw_score,
+    CASE WHEN ISJSON(d.GradeProbabilities) = 1 THEN
+        (SELECT STRING_AGG(j.[value], ';') WITHIN GROUP (ORDER BY CAST(j.[key] AS int))
+         FROM OPENJSON(d.GradeProbabilities) j WHERE CAST(j.[key] AS int) > 0) END AS ai_fold_scores,
+    CASE WHEN ISJSON(d.GradeProbabilities) = 1 THEN
+        (SELECT CAST(ROUND(STDEVP(CAST(j.[value] AS float)), 4) AS varchar(24))
+         FROM OPENJSON(d.GradeProbabilities) j WHERE CAST(j.[key] AS int) > 0) END AS ai_fold_sd,
+    i.FileSha256                                                               AS image_sha256
 FROM dbo.AiDiagnoses d
 JOIN dbo.FundusImages   i  ON i.Id = d.FundusImageId
 JOIN dbo.MedicalVisits  v  ON v.Id = i.VisitId
 JOIN dbo.MedicalRecords mr ON mr.Id = v.MedicalRecordId
 JOIN dbo.Patients       p  ON p.Id = mr.PatientId
 LEFT JOIN dbo.DiagnosisReviews r ON r.AiDiagnosisId = d.Id AND r.IsVoided = 0
-LEFT JOIN dbo.Users u ON u.Id = r.DoctorId
 LEFT JOIN dbo.ModelVersions mvDr ON mvDr.Id = d.ModelVersionId
 LEFT JOIN dbo.ModelVersions mvLe ON mvLe.Id = d.LesionModelVersionId
 LEFT JOIN dbo.ModelVersions mvFr ON mvFr.Id = d.FractalModelVersionId

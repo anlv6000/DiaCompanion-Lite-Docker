@@ -153,7 +153,7 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
         />
       )}
       <aside className="side" onClick={() => setNavOpen(false)}>
-        <div className="logo">DiaCompanion</div>
+        <div className="logo">DR AI-Diagnosis</div>
         <nav>
           {NAV.map(([group, items]) => {
             const visible = items.filter((x) => hasAnyRole(user, x.roles));

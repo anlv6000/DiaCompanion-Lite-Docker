@@ -11,6 +11,10 @@ public interface IUnitOfWork
     Task<int> CommitAsync(CancellationToken cancellationToken = default);
     Task<bool> TryCommitAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Lưu; trả false (và hủy các thay đổi đang chờ) khi vi phạm chỉ mục/ràng buộc DUY NHẤT
+    /// (SQL Server 2601, 2627). Lỗi khác vẫn ném ra.</summary>
+    Task<bool> TryCommitUniqueAsync(CancellationToken cancellationToken = default);
+
     Task ExecuteInTransactionAsync(
         Func<Task> action,
         IsolationLevel isolationLevel = IsolationLevel.ReadCommitted,
